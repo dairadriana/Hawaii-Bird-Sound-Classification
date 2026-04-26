@@ -7,6 +7,10 @@ import librosa
 from tqdm import tqdm
 from sklearn.preprocessing import LabelEncoder
 
+# =========================
+# CONFIGURACIÓN
+# =========================
+
 DATA_DIR = "data"
 AUDIO_DIR = os.path.join(DATA_DIR, "soundscape_data")
 ANNOTATIONS_FILE = os.path.join(DATA_DIR, "annotations.csv")
@@ -23,13 +27,16 @@ N_FFT = 2048
 HOP_LENGTH = 512
 
 MAX_SAMPLES_PER_CLASS = 1500
-MIN_SAMPLES_PER_CLASS = 5
 
+
+# =========================
+# FUNCIONES
+# =========================
 
 def load_audio_segment(filepath, start_time, end_time):
     duration = end_time - start_time
 
-    y, _ = librosa.load(
+    y, sr = librosa.load(
         filepath,
         sr=SR,
         offset=start_time,
@@ -60,13 +67,16 @@ def audio_to_logmel(y):
 
     logmel = librosa.power_to_db(mel, ref=np.max)
 
-    # Normalización Min-Max para CNN
-    logmel = (logmel - np.min(logmel)) / (np.max(logmel) - np.min(logmel) + 1e-8)
+    logmel = (logmel - logmel.mean()) / (logmel.std() + 1e-8)
 
     return logmel
 
 
 def find_audio_file(filename):
+    """
+    Busca el archivo de audio aunque venga con extensión distinta
+    o aunque esté en subcarpetas.
+    """
     filename = str(filename)
 
     possible_names = [
@@ -76,13 +86,17 @@ def find_audio_file(filename):
         filename.replace(".FLAC", ".flac")
     ]
 
-    for root, _, files in os.walk(AUDIO_DIR):
+    for root, dirs, files in os.walk(AUDIO_DIR):
         for name in possible_names:
             if name in files:
                 return os.path.join(root, name)
 
     return None
 
+
+# =========================
+# MAIN
+# =========================
 
 def main():
     annotations = pd.read_csv(ANNOTATIONS_FILE)
@@ -95,6 +109,8 @@ def main():
     end_col = "End Time (s)"
     label_col = "Species eBird Code"
 
+    print(f"Usando columnas: {filename_col}, {start_col}, {end_col}, {label_col}")
+
     annotations = annotations.dropna(
         subset=[filename_col, start_col, end_col, label_col]
     )
@@ -102,17 +118,15 @@ def main():
     annotations[start_col] = annotations[start_col].astype(float)
     annotations[end_col] = annotations[end_col].astype(float)
 
-    annotations = annotations[annotations[end_col] > annotations[start_col]]
+    annotations = annotations[
+        annotations[end_col] > annotations[start_col]
+    ]
 
     print("Total de anotaciones válidas:", len(annotations))
-    print("Número de especies original:", annotations[label_col].nunique())
+    print("Número de especies:", annotations[label_col].nunique())
 
-    class_counts = annotations[label_col].value_counts()
-    valid_labels = class_counts[class_counts >= MIN_SAMPLES_PER_CLASS].index
-
-    annotations = annotations[annotations[label_col].isin(valid_labels)]
-
-    print("Número de especies después de filtrar:", annotations[label_col].nunique())
+    print("\nDistribución original por especie:")
+    print(annotations[label_col].value_counts())
 
     annotations = (
         annotations
@@ -124,7 +138,7 @@ def main():
         .reset_index(drop=True)
     )
 
-    print("\nDistribución final:")
+    print("\nDistribución después de limitar muestras:")
     print(annotations[label_col].value_counts())
 
     X = []
@@ -158,7 +172,9 @@ def main():
             print(f"Error procesando {filename}: {e}")
 
     if len(X) == 0:
-        raise ValueError("No se generó ningún segmento. Revisa rutas y nombres de archivos.")
+        raise ValueError(
+            "No se generó ningún segmento. Revisa AUDIO_DIR, nombres de archivos y estructura de carpetas."
+        )
 
     X = np.array(X, dtype=np.float32)
     X = X[..., np.newaxis]
@@ -172,12 +188,19 @@ def main():
     with open(os.path.join(OUTPUT_DIR, "label_encoder.pkl"), "wb") as f:
         pickle.dump(encoder, f)
 
-    print("\nDataset procesado correctamente")
+    print("\n==============================")
+    print("Dataset procesado correctamente")
+    print("==============================")
     print("X shape:", X.shape)
     print("y shape:", y.shape)
     print("Clases:", encoder.classes_)
     print("Archivos no encontrados:", missing_files)
-    print("Errores:", errors)
+    print("Errores de procesamiento:", errors)
+
+    print("\nArchivos guardados en:")
+    print(os.path.join(OUTPUT_DIR, "X.npy"))
+    print(os.path.join(OUTPUT_DIR, "y.npy"))
+    print(os.path.join(OUTPUT_DIR, "label_encoder.pkl"))
 
 
 if __name__ == "__main__":

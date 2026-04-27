@@ -3,6 +3,7 @@ import pickle
 import numpy as np
 import pandas as pd
 import librosa
+import traceback
 
 from tqdm import tqdm
 from sklearn.preprocessing import LabelEncoder
@@ -18,7 +19,7 @@ OUTPUT_DIR = "processed"
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-SR = 32000
+SR = 16000
 SEGMENT_DURATION = 3.0
 N_SAMPLES = int(SR * SEGMENT_DURATION)
 
@@ -26,8 +27,12 @@ N_MELS = 128
 N_FFT = 2048
 HOP_LENGTH = 512
 
-MAX_SAMPLES_PER_CLASS = 1500
+MAX_SAMPLES_PER_CLASS = 1000
 
+SAVE_RAW_AUDIO = False  
+SAVE_LOGMEL = True
+
+np.random.seed(42)
 
 # =========================
 # FUNCIONES
@@ -128,20 +133,19 @@ def main():
     print("\nDistribución original por especie:")
     print(annotations[label_col].value_counts())
 
-    annotations = (
-        annotations
-        .groupby(label_col, group_keys=False)
-        .apply(lambda x: x.sample(
-            min(len(x), MAX_SAMPLES_PER_CLASS),
-            random_state=42
-        ))
-        .reset_index(drop=True)
-    )
+
+    sampled_list = []
+    for _, group in annotations.groupby(label_col):
+        sampled_list.append(
+            group.sample(min(len(group), MAX_SAMPLES_PER_CLASS), random_state=42)
+        )
+    annotations = pd.concat(sampled_list).reset_index(drop=True)
 
     print("\nDistribución después de limitar muestras:")
     print(annotations[label_col].value_counts())
 
     X = []
+    X_raw = []
     y_labels = []
 
     missing_files = 0
@@ -162,27 +166,44 @@ def main():
         try:
             audio = load_audio_segment(filepath, start_time, end_time)
             audio = fix_length_audio(audio)
-            logmel = audio_to_logmel(audio)
+            audio = librosa.resample(
+                y=audio,
+                orig_sr=32000,
+                target_sr=SR
+            )
 
-            X.append(logmel)
+            if SAVE_LOGMEL:
+                logmel = audio_to_logmel(audio)
+                X.append(logmel)
+            
+            if SAVE_RAW_AUDIO:
+                X_raw.append(audio)
+                
             y_labels.append(label)
 
         except Exception as e:
             errors += 1
             print(f"Error procesando {filename}: {e}")
+            continue
 
-    if len(X) == 0:
+    if len(X) == 0 :
         raise ValueError(
             "No se generó ningún segmento. Revisa AUDIO_DIR, nombres de archivos y estructura de carpetas."
         )
 
-    X = np.array(X, dtype=np.float32)
-    X = X[..., np.newaxis]
 
     encoder = LabelEncoder()
     y = encoder.fit_transform(y_labels)
 
-    np.save(os.path.join(OUTPUT_DIR, "X.npy"), X)
+    if SAVE_LOGMEL:
+        X = np.array(X, dtype=np.float32)
+        X = X[..., np.newaxis]
+        np.save(os.path.join(OUTPUT_DIR, "X.npy"), X)
+    
+    if SAVE_RAW_AUDIO:
+        X_raw = np.array(X_raw, dtype=np.float32)
+        np.save(os.path.join(OUTPUT_DIR, "X_raw.npy"), X_raw)
+        
     np.save(os.path.join(OUTPUT_DIR, "y.npy"), y)
 
     with open(os.path.join(OUTPUT_DIR, "label_encoder.pkl"), "wb") as f:
@@ -191,14 +212,20 @@ def main():
     print("\n==============================")
     print("Dataset procesado correctamente")
     print("==============================")
-    print("X shape:", X.shape)
+    if SAVE_LOGMEL:
+        print("X shape (Log-Mel):", X.shape)
+    if SAVE_RAW_AUDIO:
+        print("X_raw shape (Waveform):", X_raw.shape)
     print("y shape:", y.shape)
     print("Clases:", encoder.classes_)
     print("Archivos no encontrados:", missing_files)
     print("Errores de procesamiento:", errors)
 
     print("\nArchivos guardados en:")
-    print(os.path.join(OUTPUT_DIR, "X.npy"))
+    if SAVE_LOGMEL:
+        print(os.path.join(OUTPUT_DIR, "X.npy"))
+    if SAVE_RAW_AUDIO:
+        print(os.path.join(OUTPUT_DIR, "X_raw.npy"))
     print(os.path.join(OUTPUT_DIR, "y.npy"))
     print(os.path.join(OUTPUT_DIR, "label_encoder.pkl"))
 

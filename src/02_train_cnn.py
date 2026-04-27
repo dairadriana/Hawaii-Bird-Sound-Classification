@@ -17,7 +17,7 @@ PROCESSED_DIR = "processed"
 MODEL_DIR = "models"
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-MIN_SAMPLES_PER_CLASS = 5
+MIN_SAMPLES_PER_CLASS = 500
 
 # =========================
 # CARGAR DATOS
@@ -169,7 +169,7 @@ early_stop = callbacks.EarlyStopping(
 )
 
 checkpoint = callbacks.ModelCheckpoint(
-    os.path.join(MODEL_DIR, "best_cnn_model.keras"),
+    os.path.join(MODEL_DIR, "best_cnn_model_800_samples.keras"),
     monitor="val_accuracy",
     save_best_only=True
 )
@@ -212,7 +212,6 @@ plt.ylabel("Accuracy")
 plt.legend()
 plt.title("Accuracy de entrenamiento y validación")
 plt.savefig(os.path.join(MODEL_DIR, "accuracy_curve.png"), dpi=300)
-plt.show()
 
 plt.figure()
 plt.plot(history.history["loss"], label="Train loss")
@@ -222,4 +221,3 @@ plt.ylabel("Loss")
 plt.legend()
 plt.title("Loss de entrenamiento y validación")
 plt.savefig(os.path.join(MODEL_DIR, "loss_curve.png"), dpi=300)
-plt.show()

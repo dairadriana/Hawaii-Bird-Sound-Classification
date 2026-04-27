@@ -152,6 +152,8 @@ print(f"Macro Recall: {macro_recall:.4f}")
 print(f"Macro F1: {macro_f1:.4f}")
 print(f"Weighted F1: {weighted_f1:.4f}")
 
+
+
 plt.figure()
 plt.plot(history.history["accuracy"], label="Train accuracy")
 plt.plot(history.history["val_accuracy"], label="Validation accuracy")

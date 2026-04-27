@@ -6,76 +6,30 @@ import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_class_weight
-from sklearn.preprocessing import LabelEncoder
-from tensorflow.keras import layers, models, callbacks
+from sklearn.metrics import f1_score, precision_score, recall_score
 
-# =========================
-# CONFIGURACIÓN
-# =========================
+from tensorflow.keras import layers, models, callbacks
 
 PROCESSED_DIR = "processed"
 MODEL_DIR = "models"
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-MIN_SAMPLES_PER_CLASS = 5
-
-# =========================
-# CARGAR DATOS
-# =========================
-
 X = np.load(os.path.join(PROCESSED_DIR, "X.npy"))
 y = np.load(os.path.join(PROCESSED_DIR, "y.npy"))
 
 with open(os.path.join(PROCESSED_DIR, "label_encoder.pkl"), "rb") as f:
-    old_encoder = pickle.load(f)
-
-old_class_names = old_encoder.classes_
-
-print("X original:", X.shape)
-print("y original:", y.shape)
-print("Número original de clases:", len(np.unique(y)))
-
-# =========================
-# FILTRAR CLASES PEQUEÑAS
-# =========================
-
-classes, counts = np.unique(y, return_counts=True)
-
-print("\nDistribución original:")
-for c, count in zip(classes, counts):
-    print(f"{old_class_names[c]}: {count}")
-
-valid_classes = classes[counts >= MIN_SAMPLES_PER_CLASS]
-
-mask = np.isin(y, valid_classes)
-
-X = X[mask]
-y = y[mask]
-
-kept_class_names = old_class_names[valid_classes]
-
-# Reindexar etiquetas: 0, 1, 2, ...
-new_encoder = LabelEncoder()
-y_text = old_class_names[y]
-y = new_encoder.fit_transform(y_text)
+    encoder = pickle.load(f)
 
 num_classes = len(np.unique(y))
 
-print("\nDespués de filtrar clases pequeñas:")
 print("X:", X.shape)
 print("y:", y.shape)
 print("Número de clases:", num_classes)
 
-print("\nClases usadas:")
-for cls, count in zip(*np.unique(y_text, return_counts=True)):
-    print(f"{cls}: {count}")
-
-with open(os.path.join(PROCESSED_DIR, "label_encoder_filtered.pkl"), "wb") as f:
-    pickle.dump(new_encoder, f)
-
-# =========================
-# SPLIT TRAIN / VAL / TEST
-# =========================
+print("\nDistribución del dataset principal:")
+classes, counts = np.unique(y, return_counts=True)
+for cls, count in zip(classes, counts):
+    print(f"{encoder.classes_[cls]}: {count}")
 
 X_train, X_temp, y_train, y_temp = train_test_split(
     X,
@@ -93,14 +47,10 @@ X_val, X_test, y_val, y_test = train_test_split(
     stratify=y_temp
 )
 
-print("\nTamaños:")
-print("Train:", X_train.shape, y_train.shape)
-print("Val:", X_val.shape, y_val.shape)
-print("Test:", X_test.shape, y_test.shape)
-
-# =========================
-# CLASS WEIGHTS
-# =========================
+np.save(os.path.join(PROCESSED_DIR, "X_test.npy"), X_test)
+np.save(os.path.join(PROCESSED_DIR, "y_test.npy"), y_test)
+np.save(os.path.join(PROCESSED_DIR, "X_val.npy"), X_val)
+np.save(os.path.join(PROCESSED_DIR, "y_val.npy"), y_val)
 
 class_weights_array = compute_class_weight(
     class_weight="balanced",
@@ -113,9 +63,11 @@ class_weights = dict(enumerate(class_weights_array))
 print("\nClass weights:")
 print(class_weights)
 
-# =========================
-# MODELO CNN
-# =========================
+print("\nTamaños:")
+print("Train:", X_train.shape, y_train.shape)
+print("Val:", X_val.shape, y_val.shape)
+print("Test:", X_test.shape, y_test.shape)
+
 
 def build_model(input_shape, num_classes):
     model = models.Sequential([
@@ -158,10 +110,6 @@ model.compile(
 
 model.summary()
 
-# =========================
-# CALLBACKS
-# =========================
-
 early_stop = callbacks.EarlyStopping(
     monitor="val_loss",
     patience=8,
@@ -174,10 +122,6 @@ checkpoint = callbacks.ModelCheckpoint(
     save_best_only=True
 )
 
-# =========================
-# ENTRENAMIENTO
-# =========================
-
 history = model.fit(
     X_train,
     y_train,
@@ -188,21 +132,25 @@ history = model.fit(
     callbacks=[early_stop, checkpoint]
 )
 
-# =========================
-# EVALUACIÓN
-# =========================
-
 test_loss, test_acc = model.evaluate(X_test, y_test)
 
+y_probs = model.predict(X_test)
+y_pred = np.argmax(y_probs, axis=1)
+
+macro_f1 = f1_score(y_test, y_pred, average="macro", zero_division=0)
+weighted_f1 = f1_score(y_test, y_pred, average="weighted", zero_division=0)
+macro_precision = precision_score(y_test, y_pred, average="macro", zero_division=0)
+macro_recall = recall_score(y_test, y_pred, average="macro", zero_division=0)
+
 print("\n==============================")
-print("RESULTADOS FINALES")
+print("RESULTADOS TEST OFICIAL")
 print("==============================")
 print(f"Test loss: {test_loss:.4f}")
 print(f"Test accuracy: {test_acc:.4f}")
-
-# =========================
-# GRÁFICAS
-# =========================
+print(f"Macro Precision: {macro_precision:.4f}")
+print(f"Macro Recall: {macro_recall:.4f}")
+print(f"Macro F1: {macro_f1:.4f}")
+print(f"Weighted F1: {weighted_f1:.4f}")
 
 plt.figure()
 plt.plot(history.history["accuracy"], label="Train accuracy")

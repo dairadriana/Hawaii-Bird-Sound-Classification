@@ -7,12 +7,14 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_class_weight
 from sklearn.metrics import f1_score, precision_score, recall_score
-
 from tensorflow.keras import layers, models, callbacks
 
 PROCESSED_DIR = "processed"
 MODEL_DIR = "models"
+
 os.makedirs(MODEL_DIR, exist_ok=True)
+
+MODEL_PATH = os.path.join(MODEL_DIR, "best_cnn_model_12_classes.keras")
 
 X = np.load(os.path.join(PROCESSED_DIR, "X.npy"))
 y = np.load(os.path.join(PROCESSED_DIR, "y.npy"))
@@ -20,14 +22,16 @@ y = np.load(os.path.join(PROCESSED_DIR, "y.npy"))
 with open(os.path.join(PROCESSED_DIR, "label_encoder.pkl"), "rb") as f:
     encoder = pickle.load(f)
 
-num_classes = len(np.unique(y))
+num_classes = len(encoder.classes_)
 
 print("X:", X.shape)
 print("y:", y.shape)
 print("Número de clases:", num_classes)
+print("Clases:", encoder.classes_)
 
-print("\nDistribución del dataset principal:")
 classes, counts = np.unique(y, return_counts=True)
+
+print("\nDistribución:")
 for cls, count in zip(classes, counts):
     print(f"{encoder.classes_[cls]}: {count}")
 
@@ -64,9 +68,9 @@ print("\nClass weights:")
 print(class_weights)
 
 print("\nTamaños:")
-print("Train:", X_train.shape, y_train.shape)
-print("Val:", X_val.shape, y_val.shape)
-print("Test:", X_test.shape, y_test.shape)
+print("Train:", X_train.shape)
+print("Val:", X_val.shape)
+print("Test:", X_test.shape)
 
 
 def build_model(input_shape, num_classes):
@@ -117,7 +121,7 @@ early_stop = callbacks.EarlyStopping(
 )
 
 checkpoint = callbacks.ModelCheckpoint(
-    os.path.join(MODEL_DIR, "best_cnn_model.keras"),
+    MODEL_PATH,
     monitor="val_accuracy",
     save_best_only=True
 )
@@ -143,7 +147,7 @@ macro_precision = precision_score(y_test, y_pred, average="macro", zero_division
 macro_recall = recall_score(y_test, y_pred, average="macro", zero_division=0)
 
 print("\n==============================")
-print("RESULTADOS TEST OFICIAL")
+print("RESULTADOS FINALES")
 print("==============================")
 print(f"Test loss: {test_loss:.4f}")
 print(f"Test accuracy: {test_acc:.4f}")
@@ -151,8 +155,6 @@ print(f"Macro Precision: {macro_precision:.4f}")
 print(f"Macro Recall: {macro_recall:.4f}")
 print(f"Macro F1: {macro_f1:.4f}")
 print(f"Weighted F1: {weighted_f1:.4f}")
-
-
 
 plt.figure()
 plt.plot(history.history["accuracy"], label="Train accuracy")
@@ -162,7 +164,6 @@ plt.ylabel("Accuracy")
 plt.legend()
 plt.title("Accuracy de entrenamiento y validación")
 plt.savefig(os.path.join(MODEL_DIR, "accuracy_curve.png"), dpi=300)
-plt.show()
 
 plt.figure()
 plt.plot(history.history["loss"], label="Train loss")
@@ -172,4 +173,5 @@ plt.ylabel("Loss")
 plt.legend()
 plt.title("Loss de entrenamiento y validación")
 plt.savefig(os.path.join(MODEL_DIR, "loss_curve.png"), dpi=300)
+
 plt.show()

@@ -80,8 +80,6 @@ cm = confusion_matrix(
     labels=np.arange(len(class_names))
 )
 
-
-
 plt.figure(figsize=(12, 10))
 sns.heatmap(
     cm,

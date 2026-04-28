@@ -44,8 +44,7 @@ y_val   = np.load(os.path.join(PROCESSED_DIR, "main/main_val_y.npy"))
 X_train = X[train_idx]
 X_val   = X[val_idx]
 
-np.save(os.path.join(PROCESSED_DIR, "X_test.npy"), X_test)
-np.save(os.path.join(PROCESSED_DIR, "y_test.npy"), y_test)
+
 np.save(os.path.join(PROCESSED_DIR, "X_val.npy"), X_val)
 np.save(os.path.join(PROCESSED_DIR, "y_val.npy"), y_val)
 
@@ -72,7 +71,6 @@ print(class_weights)
 print("\nTamaños:")
 print("Train:", X_train.shape)
 print("Val:", X_val.shape)
-print("Test:", X_test.shape)
 
 
 def build_model(input_shape, num_classes):

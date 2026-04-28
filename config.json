@@ -3,7 +3,8 @@
         "data_dir": "data",
         "processed_dir": "processed",
         "model_dir": "models",
-        "best_model_path": "models/best_cnn_model_200_samples.keras"
+        "best_model_path": "models/best_cnn_model.keras",
+        "assets_dir": "assets"
     },
     "dataset": {
         "test_size": 0.30,

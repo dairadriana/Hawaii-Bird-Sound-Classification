@@ -66,14 +66,6 @@ def resample_audio(audio, orig_sr):
         target_sr=SR
     )
 
-
-def preprocess_audio_segment(filepath, start_time, end_time, orig_sr=32000):
-    audio = load_audio_segment(filepath, start_time, end_time)
-    audio = fix_length_audio(audio)
-    audio = resample_audio(audio, orig_sr)
-    return audio
-
-
 def audio_to_logmel(audio):
     mel = librosa.feature.melspectrogram(
         y=audio,
@@ -103,3 +95,27 @@ def add_noise_to_audio(audio, snr_db):
     noisy = audio + noise
 
     return noisy
+
+def preprocess_audio_segment(filepath, start_time, end_time, orig_sr=32000):
+    audio, _ = librosa.load(
+        filepath,
+        sr=orig_sr,
+        offset=start_time,
+        duration=end_time - start_time,
+        mono=True
+    )
+    audio = resample_audio(audio, orig_sr)
+    audio = fix_length_audio(audio)
+
+    return audio
+
+
+def preprocess_waveform_segment(audio, snr_db=None):
+    audio = fix_length_audio(audio)
+
+    if snr_db is not None:
+        audio = add_noise_to_audio(audio, snr_db)
+
+    logmel = audio_to_logmel(audio)
+
+    return logmel

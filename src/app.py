@@ -6,6 +6,7 @@ import gradio as gr
 import matplotlib.pyplot as plt
 
 from config import Config
+from audio_processing import preprocess_waveform_segment
 
 # =========================
 # CONFIG
@@ -15,6 +16,8 @@ config = Config()
 
 PROCESSED_DIR = config.get("paths", "processed_dir")
 MODEL_PATH = config.get("paths", "best_model_path")
+ASSETS_DIR = config.get("paths", "assets_dir")
+BIRDS_DIR = os.path.join(ASSETS_DIR, "birds")
 
 SR = config.get("audio", "sample_rate")
 SEGMENT_DURATION = config.get("audio", "segment_duration")
@@ -24,7 +27,7 @@ N_MELS = config.get("audio", "n_mels")
 N_FFT = config.get("audio", "n_fft")
 HOP_LENGTH = config.get("audio", "hop_length")
 
-CONFIDENCE_THRESHOLD = 0.40
+CONFIDENCE_THRESHOLD = 0.6
 
 # =========================
 # CARGA MODELO Y DATOS
@@ -32,7 +35,8 @@ CONFIDENCE_THRESHOLD = 0.40
 
 model = tf.keras.models.load_model(MODEL_PATH)
 
-X = np.load(os.path.join(PROCESSED_DIR, "X.npy"))
+X = np.load(os.path.join(PROCESSED_DIR, "X.npy"), mmap_mode='r')
+X_raw = np.load(os.path.join(PROCESSED_DIR, "X_raw.npy"), mmap_mode='r')
 
 test_idx = np.load(
     os.path.join(PROCESSED_DIR, "main", "main_test_idx.npy")
@@ -43,6 +47,7 @@ y_test = np.load(
 )
 
 X_test = X[test_idx]
+X_raw_test = X_raw[test_idx]
 
 class_names = np.load(
     os.path.join(PROCESSED_DIR, "main_classes.npy"),
@@ -58,36 +63,6 @@ print("y_test:", y_test.shape)
 # =========================
 # FUNCIONES
 # =========================
-
-def fix_length_audio(y):
-    if len(y) < N_SAMPLES:
-        y = np.pad(y, (0, N_SAMPLES - len(y)))
-    else:
-        y = y[:N_SAMPLES]
-    return y
-
-
-def audio_to_logmel(y):
-    mel = librosa.feature.melspectrogram(
-        y=y,
-        sr=SR,
-        n_fft=N_FFT,
-        hop_length=HOP_LENGTH,
-        n_mels=N_MELS
-    )
-
-    logmel = librosa.power_to_db(mel, ref=np.max)
-    logmel = (logmel - logmel.mean()) / (logmel.std() + 1e-8)
-
-    return logmel
-
-
-def add_noise(y, noise_level):
-    if noise_level <= 0:
-        return y
-
-    noise = np.random.normal(0, noise_level, size=len(y))
-    return y + noise
 
 
 def plot_logmel(logmel, title):
@@ -136,6 +111,8 @@ def predict_test_sample(index):
         return "Índice fuera de rango.", {}, None
 
     X_sample = X_test[index:index + 1]
+    X_audio = X_raw_test[index]
+    
     true_idx = int(y_test[index])
     true_label = str(class_names[true_idx])
 
@@ -156,8 +133,9 @@ def predict_test_sample(index):
 
     logmel = X_test[index, :, :, 0]
     fig = plot_logmel(logmel, "Muestra real del test set MAIN")
+    image_path = os.path.join(BIRDS_DIR, f"{pred_label}.jpg")
 
-    return result, top_predictions(probs), fig
+    return result, top_predictions(probs), fig, (SR, X_audio), image_path
 
 
 # =========================
@@ -171,28 +149,21 @@ def predict_uploaded_audio(audio_path, start_time, noise_level):
     try:
         y_full, _ = librosa.load(audio_path, sr=SR, mono=True)
     except Exception as e:
-        return (
-            f"No se pudo leer el audio.\n"
-            f"Error: {type(e).__name__}: {e}",
-            {},
-            None
-        )
+        return f"No se pudo leer el audio.\n{type(e).__name__}: {e}", {}, None
 
     start_sample = int(start_time * SR)
     end_sample = start_sample + N_SAMPLES
 
     if start_sample >= len(y_full):
-        return (
-            "El segundo de inicio está fuera de la duración del audio.",
-            {},
-            None
-        )
+        return "El segundo de inicio está fuera de la duración del audio.", {}, None
 
-    y = y_full[start_sample:end_sample]
-    y = fix_length_audio(y)
-    y = add_noise(y, noise_level)
+    segment = y_full[start_sample:end_sample]
 
-    logmel = audio_to_logmel(y)
+    logmel = preprocess_waveform_segment(
+        segment,
+        snr_db=noise_level
+    )
+
     X_input = logmel[np.newaxis, ..., np.newaxis]
 
     expected_shape = model.input_shape[1:]
@@ -216,13 +187,15 @@ def predict_uploaded_audio(audio_path, start_time, noise_level):
     extra = (
         f"Inicio del segmento: {start_time:.2f} s\n"
         f"Duración usada: {SEGMENT_DURATION} s\n"
-        f"Ruido blanco: {noise_level:.2f}"
+        f"SNR aplicado: {noise_level} dB"
     )
 
     result = make_result_text(pred_label, confidence, extra)
     fig = plot_logmel(logmel, "Espectrograma del audio subido")
+    image_path = os.path.join(BIRDS_DIR, f"{pred_label}.jpg")
+    
 
-    return result, top_predictions(probs), fig
+    return result, top_predictions(probs), fig, image_path
 
 
 # =========================
@@ -261,14 +234,24 @@ with gr.Blocks(title="Clasificador de aves de Hawai") as demo:
 
         test_button = gr.Button("Evaluar muestra")
 
-        test_result = gr.Textbox(label="Resultado")
+        test_audio = gr.Audio(label="Audio")
+        with gr.Row():
+            with gr.Column(scale=2):
+                test_result = gr.Textbox(label="Resultado")
+            with gr.Column(scale=1):
+                bird_image = gr.Image(label="Ave detectada")
         test_top = gr.Label(label="Top predicciones")
         test_plot = gr.Plot(label="Espectrograma")
 
         test_button.click(
             fn=predict_test_sample,
             inputs=[test_index],
-            outputs=[test_result, test_top, test_plot]
+            outputs=[test_result, test_top, test_plot, test_audio, bird_image]
+        )
+        gr.Markdown(
+            """
+            Resultados de las metricas de evaluacion del modelo :
+            """
         )
 
     with gr.Tab("Clasificar audio externo"):
@@ -292,25 +275,49 @@ with gr.Blocks(title="Clasificador de aves de Hawai") as demo:
             label="Segundo de inicio del segmento"
         )
 
-        noise_level = gr.Slider(
-            minimum=0.0,
-            maximum=0.5,
-            value=0.0,
-            step=0.01,
-            label="Ruido blanco"
+        noise_level = gr.Dropdown(
+            choices=[None, 40, 35, 30, 25, 20, 15, 10, 5, 0],
+            value=None,
+            label="SNR de ruido blanco (dB)"
         )
 
         audio_button = gr.Button("Clasificar audio")
 
-        audio_result = gr.Textbox(label="Resultado")
+        with gr.Row():
+            with gr.Column(scale=2):
+                audio_result = gr.Textbox(label="Resultado")
+            with gr.Column(scale=1):
+                bird_image = gr.Image(label="Ave detectada")
         audio_top = gr.Label(label="Top predicciones")
         audio_plot = gr.Plot(label="Espectrograma")
 
         audio_button.click(
             fn=predict_uploaded_audio,
             inputs=[audio_input, start_time, noise_level],
-            outputs=[audio_result, audio_top, audio_plot]
+            outputs=[audio_result, audio_top, audio_plot, bird_image]
         )
+        
+
+    with gr.Tab("Evaluacion con diferentes niveles de ruido"):
+        gr.Markdown(
+            """
+            Resultados de la evaluacion del modelo con diferentes niveles de ruido:
+            """
+        )
+        noise_level2 = gr.Dropdown(
+            choices=[None, 40, 35, 30, 25, 20, 15, 10, 5, 0],
+            value=None,
+            label="SNR de ruido blanco (dB)"
+        )
+    with gr.Tab("Otras Aves"):
+        gr.Markdown(
+            """
+            El modelo presenta una confianza alta a predicciones con aves no pertenecientes al dataset de entrenamiento.
+            """
+        )
+
+
+        
 
 
 if __name__ == "__main__":

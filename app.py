@@ -9,9 +9,6 @@ import matplotlib.pyplot as plt
 from src.audio_processing import preprocess_waveform_segment
 from src.config import Config
 
-# =========================
-# CONFIG
-# =========================
 
 config = Config()
 
@@ -29,11 +26,7 @@ HOP_LENGTH = config.get("audio", "hop_length")
 BACKGROUND_IMAGE = "assets/background.jpg"
 BIRD_IMAGE_DIR = "assets/birds"
 
-
-# =========================
-# BACKGROUND
-# =========================
-
+# Background
 def image_to_base64(path):
     with open(path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
@@ -78,6 +71,63 @@ custom_css = f"""
     background: rgba(255,255,255,0.9) !important;
     border-radius: 15px !important;
 }}
+
+.bird-frame {{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 12px;
+    margin-top: 10px;
+
+    border: 2px solid #e9d5ff;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.8);
+
+    max-width: 100%;
+    max-height: 280px;
+}}
+
+.bird-frame img {{
+    max-width: 100%;
+    max-height: 240px;
+    object-fit: contain;
+    border-radius: 8px;
+}}
+
+.section-title {{
+    margin-top: 10px;
+    margin-bottom: 10px !important;
+
+    padding: 2px 8px;
+    border-radius: 2px;
+
+    background: rgb(135, 128, 145) !important;
+    color: white !important;
+
+    font-weight: 700;
+    width: 100%;
+    box-sizing: border-box;
+}}
+
+.section-title h3 {{
+    color: white !important;
+    margin: 0 !important;
+    text-align: center; 
+}}
+
+.gr-label {{
+    margin-top: 5px !important;
+}}
+
+.green-btn {{
+    background: rgb(162, 184, 128) !important;  /* verde claro */
+    color: white !important;
+    font-weight: bold;
+}}
+
+.green-btn:hover {{
+    background: rgb(213, 224, 195) !important;
+}}
 """
 
 theme = gr.themes.Soft(
@@ -86,10 +136,7 @@ theme = gr.themes.Soft(
 )
 
 
-# =========================
-# CARGA MODELO Y DATOS
-# =========================
-
+#Carga de modelo y datos
 model = tf.keras.models.load_model(MODEL_PATH)
 
 X = np.load(os.path.join(PROCESSED_DIR, "X.npy"), mmap_mode='r')
@@ -106,9 +153,6 @@ class_names = np.load(
 )
 
 
-# =========================
-# FUNCIONES
-# =========================
 
 
 def plot_logmel(logmel, title):
@@ -137,10 +181,6 @@ def get_bird_image_path(label):
     return None
 
 
-# =========================
-# TEST SET
-# =========================
-
 def predict_test_sample(index):
     index = int(index)
 
@@ -165,21 +205,30 @@ def predict_test_sample(index):
     fig = plot_logmel(X_test[index, :, :, 0], "Muestra del test set")
     bird_img = get_bird_image_path(pred_label)
 
-    return result, top_predictions(probs), fig, bird_img, (SR, audio)
+    return (
+        gr.update(visible=True),
+        gr.update(value=result, visible=True),
+        top_predictions(probs),
+        fig,
+        bird_img
+    )
 
 
-# =========================
-# AUDIO EXTERNO
-# =========================
 
 def predict_audio(audio_path, start_time):
     if audio_path is None:
-        return "No se cargó ningún audio.", {}, None, None
+        return gr.update(visible=True), gr.update(value="No se cargó ningún audio.", visible=True), {}, None, None
 
     try:
         y_full, _ = librosa.load(audio_path, sr=SR, mono=True)
     except Exception as e:
-        return f"No se pudo leer el audio.\nError: {type(e).__name__}: {e}", {}, None, None
+        return (
+            gr.update(visible=True),
+            gr.update(value=f"No se pudo leer el audio.\nError: {type(e).__name__}: {e}", visible=True),
+            {},
+            None,
+            None
+        )
 
     start = int(start_time * SR)
 
@@ -206,12 +255,17 @@ def predict_audio(audio_path, start_time):
     fig = plot_logmel(logmel, "Audio subido")
     bird_img = get_bird_image_path(pred_label)
 
-    return result, top_predictions(probs), fig, bird_img
+    return (
+        gr.update(visible=True),
+        gr.update(value=result, visible=True),
+        top_predictions(probs),
+        fig,
+        bird_img
+    )
 
 
-# =========================
+# --------------------
 # APP
-# =========================
 
 with gr.Blocks(theme=theme, css=custom_css) as demo:
 
@@ -224,10 +278,13 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
         """
     )
 
+    
+
     with gr.Tab("Test set"):
         with gr.Row():
+            # COLUMNA 1: Entrada + Resultado
             with gr.Column(scale=1):
-                gr.Markdown("### Entrada")
+                gr.Markdown("### Entrada", elem_classes="section-title")
 
                 idx = gr.Slider(
                     minimum=0,
@@ -237,43 +294,54 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
                     label="Índice de muestra"
                 )
 
-                btn = gr.Button("Evaluar muestra")
+                btn = gr.Button("Evaluar muestra", elem_classes="green-btn")
 
-                test_audio = gr.Audio(label="Audio")
+                result_title = gr.Markdown(
+                    "### Resultado",
+                    elem_classes="section-title",
+                    visible=False
+                )
 
-                gr.Markdown("### Resultado")
                 out_text = gr.Textbox(
                     label="Predicción",
-                    lines=5
+                    lines=5,
+                    visible=False
                 )
 
-            with gr.Column(scale=1):
-                gr.Markdown("### Visualización")
+            # COLUMNA 2-3: Visualización completa
+            with gr.Column(scale=2):
+                gr.Markdown("### Visualización", elem_classes="section-title")
 
-                bird_image = gr.Image(
-                    label="Ave reconocida",
-                    type="filepath",
-                    height=260
-                )
+                with gr.Row():
+                    # Subcolumna izquierda: imagen
+                    with gr.Column(scale=1):
+                        bird_image = gr.Image(
+                            label="Ave reconocida",
+                            type="filepath",
+                            elem_classes="bird-frame"
+                        )
 
-                out_label = gr.Label(
-                    label="Top predicciones"
-                )
+                    # Subcolumna derecha: top 5 + espectrograma
+                    with gr.Column(scale=1):
+                        out_label = gr.Label(
+                            label="Top 5 predicciones"
+                        )
 
-                out_plot = gr.Plot(
-                    label="Espectrograma"
-                )
+                        out_plot = gr.Plot(
+                            label="Espectrograma"
+                        )
 
         btn.click(
             predict_test_sample,
             inputs=[idx],
-            outputs=[out_text, out_label, out_plot, bird_image, test_audio]
+            outputs=[result_title, out_text, out_label, out_plot, bird_image]
         )
 
     with gr.Tab("Audio externo"):
         with gr.Row():
+            # COLUMNA 1: Entrada + Resultado
             with gr.Column(scale=1):
-                gr.Markdown("### Entrada")
+                gr.Markdown("### Entrada", elem_classes="section-title")
 
                 audio = gr.Audio(
                     type="filepath",
@@ -288,35 +356,47 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
                     label="Segundo de inicio del segmento"
                 )
 
-                btn2 = gr.Button("Clasificar audio")
+                btn2 = gr.Button("Clasificar audio", elem_classes="green-btn")
 
-                gr.Markdown("### Resultado")
+                result_title2 = gr.Markdown(
+                    "### Resultado",
+                    elem_classes="section-title",
+                    visible=False
+                )
+
                 out_text2 = gr.Textbox(
                     label="Predicción",
-                    lines=5
+                    lines=5,
+                    visible=False
                 )
 
-            with gr.Column(scale=1):
-                gr.Markdown("### Visualización")
+            # COLUMNA 2-3: Visualización completa
+            with gr.Column(scale=2):
+                gr.Markdown("### Visualización", elem_classes="section-title")
 
-                bird_image2 = gr.Image(
-                    label="Ave reconocida",
-                    type="filepath",
-                    height=260
-                )
+                with gr.Row():
+                    # Subcolumna izquierda: imagen
+                    with gr.Column(scale=1):
+                        bird_image2 = gr.Image(
+                            label="Ave reconocida",
+                            type="filepath",
+                            elem_classes="bird-frame"
+                        )
 
-                out_label2 = gr.Label(
-                    label="Top predicciones"
-                )
+                    # Subcolumna derecha: top 5 + espectrograma
+                    with gr.Column(scale=1):
+                        out_label2 = gr.Label(
+                            label="Top 5 predicciones"
+                        )
 
-                out_plot2 = gr.Plot(
-                    label="Espectrograma"
-                )
+                        out_plot2 = gr.Plot(
+                            label="Espectrograma"
+                        )
 
         btn2.click(
             predict_audio,
             inputs=[audio, start],
-            outputs=[out_text2, out_label2, out_plot2, bird_image2]
+            outputs=[result_title2, out_text2, out_label2, out_plot2, bird_image2]
         )
 
 

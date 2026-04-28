@@ -38,8 +38,8 @@ def main():
         subset=[filename_col, start_col, end_col, label_col]
     )
 
-    annotations[start_col] = annotations[start_col].astype(float)
-    annotations[end_col] = annotations[end_col].astype(float)
+    annotations[start_col] = annotations[start_col].astype(np.float32)
+    annotations[end_col] = annotations[end_col].astype(np.float32)
 
     annotations = annotations[
         annotations[end_col] > annotations[start_col]
@@ -56,14 +56,38 @@ def main():
 
     annotations = pd.concat(sampled).reset_index(drop=True)
 
-    X = []
-    X_raw = []
+    n_samples = len(annotations)
+
+    # Infer shapes from one sample
+    sample_row = annotations.iloc[0]
+    sample_path = find_audio_file(sample_row[filename_col])
+
+    sample_audio = preprocess_audio_segment(
+        sample_path,
+        sample_row[start_col],
+        sample_row[end_col]
+    )
+
+    if SAVE_LOGMEL:
+        sample_logmel = audio_to_logmel(sample_audio)
+        X = np.empty(
+            (n_samples, *sample_logmel.shape, 1),
+            dtype=np.float32
+        )
+
+    if SAVE_RAW_AUDIO:
+        X_raw = np.empty(
+            (n_samples, len(sample_audio)),
+            dtype=np.float32
+        )
+
     y_labels = []
 
     missing_files = 0
     errors = 0
+    valid_count = 0
 
-    for _, row in tqdm(annotations.iterrows(), total=len(annotations)):
+    for _, row in tqdm(annotations.iterrows(), total=n_samples):
         filepath = find_audio_file(row[filename_col])
 
         if filepath is None:
@@ -78,35 +102,53 @@ def main():
             )
 
             if SAVE_LOGMEL:
-                X.append(audio_to_logmel(audio))
+                X[valid_count] = audio_to_logmel(audio)[..., np.newaxis]
 
             if SAVE_RAW_AUDIO:
-                X_raw.append(audio)
+                X_raw[valid_count] = audio
 
             y_labels.append(row[label_col])
+            valid_count += 1
 
         except Exception as e:
             errors += 1
             print(f"Error procesando {row[filename_col]}: {e}")
 
-    if not X and not X_raw:
+    if valid_count == 0:
         raise ValueError("No se generó ningún segmento válido.")
+
+    # Trim unused preallocated space
+    if SAVE_LOGMEL:
+        X = X[:valid_count]
+
+    if SAVE_RAW_AUDIO:
+        X_raw = X_raw[:valid_count]
 
     encoder = LabelEncoder()
     y = encoder.fit_transform(y_labels)
 
     if SAVE_LOGMEL:
-        X = np.array(X, dtype=np.float32)[..., np.newaxis]
         np.save(os.path.join(OUTPUT_DIR, "X.npy"), X)
 
     if SAVE_RAW_AUDIO:
-        X_raw = np.array(X_raw, dtype=np.float32)
         np.save(os.path.join(OUTPUT_DIR, "X_raw.npy"), X_raw)
 
     np.save(os.path.join(OUTPUT_DIR, "y.npy"), y)
 
     with open(os.path.join(OUTPUT_DIR, "label_encoder.pkl"), "wb") as f:
         pickle.dump(encoder, f)
+
+    print("Dataset procesado correctamente")
+
+    if SAVE_LOGMEL:
+        print("X shape:", X.shape)
+
+    if SAVE_RAW_AUDIO:
+        print("X_raw shape:", X_raw.shape)
+
+    print("y shape:", y.shape)
+    print("Archivos no encontrados:", missing_files)
+    print("Errores:", errors)
 
 
 if __name__ == "__main__":

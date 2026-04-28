@@ -87,3 +87,19 @@ def audio_to_logmel(audio):
     logmel = (logmel - logmel.mean()) / (logmel.std() + 1e-8)
 
     return logmel
+
+
+def add_noise_to_audio(audio, snr_db):
+    signal_power = np.mean(audio.astype(np.float64) ** 2, axis=-1, keepdims=True)
+
+    noise_power = signal_power / (10 ** (snr_db / 10))
+
+    noise = np.random.normal(
+        0.0,
+        np.sqrt(noise_power),
+        size=audio.shape
+    ).astype(audio.dtype)
+
+    noisy = audio + noise
+
+    return noisy

@@ -5,6 +5,8 @@ import pandas as pd
 import librosa
 import traceback
 
+from config import Config
+
 from tqdm import tqdm
 from sklearn.preprocessing import LabelEncoder
 
@@ -12,27 +14,29 @@ from sklearn.preprocessing import LabelEncoder
 # CONFIGURACIÓN
 # =========================
 
-DATA_DIR = "data"
+config = Config()
+
+DATA_DIR = config.get("paths", "data_dir")
 AUDIO_DIR = os.path.join(DATA_DIR, "soundscape_data")
 ANNOTATIONS_FILE = os.path.join(DATA_DIR, "annotations.csv")
-OUTPUT_DIR = "processed"
+OUTPUT_DIR = config.get("paths", "processed_dir")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-SR = 16000
-SEGMENT_DURATION = 3.0
+SR = config.get("audio", "sample_rate")
+SEGMENT_DURATION = config.get("audio", "segment_duration")
 N_SAMPLES = int(SR * SEGMENT_DURATION)
 
-N_MELS = 128
-N_FFT = 2048
-HOP_LENGTH = 512
+N_MELS = config.get("audio", "n_mels")
+N_FFT = config.get("audio", "n_fft")
+HOP_LENGTH = config.get("audio", "hop_length")
 
-MAX_SAMPLES_PER_CLASS = 1000
+MAX_SAMPLES_PER_CLASS = config.get("prepare_dataset", "MAX_SAMPLES_PER_CLASS")
 
-SAVE_RAW_AUDIO = False  
-SAVE_LOGMEL = True
+SAVE_RAW_AUDIO = config.get("prepare_dataset", "SAVE_RAW_AUDIO")
+SAVE_LOGMEL = config.get("prepare_dataset", "SAVE_LOGMEL")
 
-np.random.seed(42)
+np.random.seed(config.get("dataset", "random_state"))
 
 # =========================
 # FUNCIONES

@@ -4,99 +4,50 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
-from sklearn.model_selection import train_test_split
+from config import Config
 from sklearn.utils.class_weight import compute_class_weight
-from sklearn.preprocessing import LabelEncoder
 from tensorflow.keras import layers, models, callbacks
 
 # =========================
 # CONFIGURACIÓN
 # =========================
 
-PROCESSED_DIR = "processed"
-MODEL_DIR = "models"
-os.makedirs(MODEL_DIR, exist_ok=True)
+config = Config()
 
-MIN_SAMPLES_PER_CLASS = 500
+PROCESSED_DIR = config.get("paths", "processed_dir")
+MODEL_DIR = config.get("paths", "model_dir")
+BEST_MODEL_PATH = config.get("paths", "best_model_path")
+os.makedirs(MODEL_DIR, exist_ok=True)
 
 # =========================
 # CARGAR DATOS
 # =========================
-
 X = np.load(os.path.join(PROCESSED_DIR, "X.npy"))
-y = np.load(os.path.join(PROCESSED_DIR, "y.npy"))
 
-with open(os.path.join(PROCESSED_DIR, "label_encoder.pkl"), "rb") as f:
-    old_encoder = pickle.load(f)
-
-old_class_names = old_encoder.classes_
-
-print("X original:", X.shape)
-print("y original:", y.shape)
-print("Número original de clases:", len(np.unique(y)))
-
-# =========================
-# FILTRAR CLASES PEQUEÑAS
-# =========================
-
-classes, counts = np.unique(y, return_counts=True)
-
-print("\nDistribución original:")
-for c, count in zip(classes, counts):
-    print(f"{old_class_names[c]}: {count}")
-
-valid_classes = classes[counts >= MIN_SAMPLES_PER_CLASS]
-
-mask = np.isin(y, valid_classes)
-
-X = X[mask]
-y = y[mask]
-
-kept_class_names = old_class_names[valid_classes]
-
-# Reindexar etiquetas: 0, 1, 2, ...
-new_encoder = LabelEncoder()
-y_text = old_class_names[y]
-y = new_encoder.fit_transform(y_text)
-
-num_classes = len(np.unique(y))
-
-print("\nDespués de filtrar clases pequeñas:")
-print("X:", X.shape)
-print("y:", y.shape)
-print("Número de clases:", num_classes)
-
-print("\nClases usadas:")
-for cls, count in zip(*np.unique(y_text, return_counts=True)):
-    print(f"{cls}: {count}")
-
-with open(os.path.join(PROCESSED_DIR, "label_encoder_filtered.pkl"), "wb") as f:
-    pickle.dump(new_encoder, f)
-
-# =========================
-# SPLIT TRAIN / VAL / TEST
-# =========================
-
-X_train, X_temp, y_train, y_temp = train_test_split(
-    X,
-    y,
-    test_size=0.30,
-    random_state=42,
-    stratify=y
+main_classes = np.load(
+    os.path.join(PROCESSED_DIR, "main_classes.npy"),
+    allow_pickle=True
 )
 
-X_val, X_test, y_val, y_test = train_test_split(
-    X_temp,
-    y_temp,
-    test_size=0.50,
-    random_state=42,
-    stratify=y_temp
-)
+num_classes = len(main_classes)
+
+train_idx = np.load(os.path.join(PROCESSED_DIR, "main/main_train_idx.npy"))
+val_idx   = np.load(os.path.join(PROCESSED_DIR, "main/main_val_idx.npy"))
+
+y_train = np.load(os.path.join(PROCESSED_DIR, "main/main_train_y.npy"))
+y_val   = np.load(os.path.join(PROCESSED_DIR, "main/main_val_y.npy"))
+
+# =========================
+# INDEXAR FEATURES
+# =========================
+X_train = X[train_idx]
+X_val   = X[val_idx]
+
 
 print("\nTamaños:")
 print("Train:", X_train.shape, y_train.shape)
 print("Val:", X_val.shape, y_val.shape)
-print("Test:", X_test.shape, y_test.shape)
+
 
 # =========================
 # CLASS WEIGHTS
@@ -169,7 +120,7 @@ early_stop = callbacks.EarlyStopping(
 )
 
 checkpoint = callbacks.ModelCheckpoint(
-    os.path.join(MODEL_DIR, "best_cnn_model_800_samples.keras"),
+    BEST_MODEL_PATH,
     monitor="val_accuracy",
     save_best_only=True
 )
@@ -187,18 +138,6 @@ history = model.fit(
     class_weight=class_weights,
     callbacks=[early_stop, checkpoint]
 )
-
-# =========================
-# EVALUACIÓN
-# =========================
-
-test_loss, test_acc = model.evaluate(X_test, y_test)
-
-print("\n==============================")
-print("RESULTADOS FINALES")
-print("==============================")
-print(f"Test loss: {test_loss:.4f}")
-print(f"Test accuracy: {test_acc:.4f}")
 
 # =========================
 # GRÁFICAS

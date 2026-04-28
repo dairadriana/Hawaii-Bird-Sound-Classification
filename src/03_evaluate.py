@@ -5,64 +5,29 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import tensorflow as tf
 
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
+from config import Config
 from sklearn.metrics import classification_report, confusion_matrix
 
-PROCESSED_DIR = "processed"
-MODEL_PATH = "models/best_cnn_model.keras"
-MIN_SAMPLES_PER_CLASS = 5
+config = Config()
 
+PROCESSED_DIR = config.get("paths", "processed_dir")
+MODEL_PATH = config.get("paths", "best_model_path")
+MIN_SAMPLES_PER_CLASS = config.get("dataset", "min_samples_per_class")
+MODEL_DIR = config.get("paths", "model_dir")
+
+# =========================
+# DATOS DE TEST
+# =========================
 X = np.load(os.path.join(PROCESSED_DIR, "X.npy"))
-y = np.load(os.path.join(PROCESSED_DIR, "y.npy"))
+test_idx = np.load(os.path.join(PROCESSED_DIR, "main/main_test_idx.npy"))
+y_test = np.load(os.path.join(PROCESSED_DIR, "main/main_test_y.npy"))
 
-with open(os.path.join(PROCESSED_DIR, "label_encoder.pkl"), "rb") as f:
-    old_encoder = pickle.load(f)
+X_test = X[test_idx]
 
-old_class_names = old_encoder.classes_
+class_names = np.load(os.path.join(PROCESSED_DIR, "main_classes.npy"))
 
-# =========================
-# FILTRAR IGUAL QUE EN TRAIN
-# =========================
-
-classes, counts = np.unique(y, return_counts=True)
-valid_classes = classes[counts >= MIN_SAMPLES_PER_CLASS]
-
-mask = np.isin(y, valid_classes)
-
-X = X[mask]
-y = y[mask]
-
-y_text = old_class_names[y]
-
-new_encoder = LabelEncoder()
-y = new_encoder.fit_transform(y_text)
-
-class_names = new_encoder.classes_
-
-print("X filtrado:", X.shape)
-print("y filtrado:", y.shape)
-print("Número de clases:", len(class_names))
-
-# =========================
-# MISMO SPLIT QUE EN TRAIN
-# =========================
-
-X_train, X_temp, y_train, y_temp = train_test_split(
-    X,
-    y,
-    test_size=0.30,
-    random_state=42,
-    stratify=y
-)
-
-X_val, X_test, y_val, y_test = train_test_split(
-    X_temp,
-    y_temp,
-    test_size=0.50,
-    random_state=42,
-    stratify=y_temp
-)
+print(X_test.shape, y_test.shape)
+print(class_names)
 
 # =========================
 # CARGAR MODELO
@@ -102,5 +67,6 @@ plt.title("Matriz de confusión - Clasificación de cantos de aves")
 plt.xticks(rotation=90)
 plt.yticks(rotation=0)
 plt.tight_layout()
-plt.savefig("models/confusion_matrix.png", dpi=300)
+plt.savefig(os.path.join(MODEL_DIR, "test_confusion_matrix.png"), dpi=300)
+
 plt.show()

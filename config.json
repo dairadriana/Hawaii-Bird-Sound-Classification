@@ -18,6 +18,7 @@
     },
     "audio": {
         "sample_rate": 16000,
+        "segment_duration": 3.0,
         "n_mels": 128,
         "n_fft": 2048,
         "hop_length": 512

@@ -94,15 +94,21 @@ custom_css = f"""
 }}
 
 .section-title {{
-    margin-top: 15px;
-    margin-bottom: 10px;
-    padding-left: 5px;
-    font-weight: 600;
-    color: #4c1d95;
+    margin-top: 10px;
+    margin-bottom: 10px !important;
+
+    padding: 6px 12px;
+    border-radius: 8px;
+
+    background-color: rgb(255, 235, 59);
+    color: black !important;
+
+    font-weight: 700;
+    display: inline-block;
 }}
 
 .gr-label {{
-    margin-top: 10px !important;
+    margin-top: 5px !important;
 }}
 
 .green-btn {{
@@ -283,6 +289,7 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
 
     with gr.Tab("Test set"):
         with gr.Row():
+            # COLUMNA 1: Entrada + Resultado
             with gr.Column(scale=1):
                 gr.Markdown("### Entrada", elem_classes="section-title")
 
@@ -308,8 +315,9 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
                     visible=False
                 )
 
+            # COLUMNA 2: Ave + Top 5
             with gr.Column(scale=1):
-                gr.Markdown("### Visualización", elem_classes="section-title")
+                gr.Markdown("### Ave reconocida", elem_classes="section-title")
 
                 bird_image = gr.Image(
                     label="Ave reconocida",
@@ -318,8 +326,12 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
                 )
 
                 out_label = gr.Label(
-                    label="Top predicciones"
+                    label="Top 5 predicciones"
                 )
+
+            # COLUMNA 3: Espectrograma
+            with gr.Column(scale=1):
+                gr.Markdown("### Visualización", elem_classes="section-title")
 
                 out_plot = gr.Plot(
                     label="Espectrograma"
@@ -333,6 +345,7 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
 
     with gr.Tab("Audio externo"):
         with gr.Row():
+            # COLUMNA 1: Entrada + Resultado
             with gr.Column(scale=1):
                 gr.Markdown("### Entrada", elem_classes="section-title")
 
@@ -349,7 +362,7 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
                     label="Segundo de inicio del segmento"
                 )
 
-                btn2 = gr.Button("Clasificar audio", elem_classes="green-btn")
+                btn2 = gr.Button("Clasificar audio")
 
                 result_title2 = gr.Markdown(
                     "### Resultado",
@@ -363,8 +376,9 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
                     visible=False
                 )
 
+            # COLUMNA 2: Ave + Top 5
             with gr.Column(scale=1):
-                gr.Markdown("### Visualización", elem_classes="section-title")
+                gr.Markdown("### Ave reconocida", elem_classes="section-title")
 
                 bird_image2 = gr.Image(
                     label="Ave reconocida",
@@ -373,8 +387,12 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
                 )
 
                 out_label2 = gr.Label(
-                    label="Top predicciones"
+                    label="Top 5 predicciones"
                 )
+
+            # COLUMNA 3: Espectrograma
+            with gr.Column(scale=1):
+                gr.Markdown("### Visualización", elem_classes="section-title")
 
                 out_plot2 = gr.Plot(
                     label="Espectrograma"

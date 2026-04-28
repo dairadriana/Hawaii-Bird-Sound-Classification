@@ -1,0 +1,31 @@
+{
+    "paths": {
+        "data_dir": "data",
+        "processed_dir": "processed",
+        "model_dir": "models",
+        "best_model_path": "models/best_cnn_model_200_samples.keras"
+    },
+    "dataset": {
+        "test_size": 0.30,
+        "val_split": 0.50,
+        "random_state": 42,
+        "min_samples_per_class": 200
+    },
+    "prepare_dataset": {
+        "MAX_SAMPLES_PER_CLASS": 1000,
+        "SAVE_RAW_AUDIO": false,
+        "SAVE_LOGMEL": true
+    },
+    "audio": {
+        "sample_rate": 16000,
+        "segment_duration": 3.0,
+        "n_mels": 128,
+        "n_fft": 2048,
+        "hop_length": 512
+    },
+    "training": {
+        "batch_size": 32,
+        "epochs": 50,
+        "learning_rate": 0.0001
+    }
+}

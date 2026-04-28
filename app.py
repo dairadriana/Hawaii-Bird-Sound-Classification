@@ -6,6 +6,7 @@ import tensorflow as tf
 import gradio as gr
 import matplotlib.pyplot as plt
 
+from src.audio_processing import preprocess_waveform_segment
 from src.config import Config
 
 # =========================
@@ -91,7 +92,9 @@ theme = gr.themes.Soft(
 
 model = tf.keras.models.load_model(MODEL_PATH)
 
-X = np.load(os.path.join(PROCESSED_DIR, "X.npy"))
+X = np.load(os.path.join(PROCESSED_DIR, "X.npy"), mmap_mode='r')
+X_raw = np.load(os.path.join(PROCESSED_DIR, "X_raw.npy"), mmap_mode='r')
+
 test_idx = np.load(os.path.join(PROCESSED_DIR, "main/main_test_idx.npy"))
 y_test = np.load(os.path.join(PROCESSED_DIR, "main/main_test_y.npy"))
 
@@ -106,28 +109,6 @@ class_names = np.load(
 # =========================
 # FUNCIONES
 # =========================
-
-def fix_length_audio(y):
-    if len(y) < N_SAMPLES:
-        y = np.pad(y, (0, N_SAMPLES - len(y)))
-    else:
-        y = y[:N_SAMPLES]
-    return y
-
-
-def audio_to_logmel(y):
-    mel = librosa.feature.melspectrogram(
-        y=y,
-        sr=SR,
-        n_fft=N_FFT,
-        hop_length=HOP_LENGTH,
-        n_mels=N_MELS
-    )
-
-    logmel = librosa.power_to_db(mel, ref=np.max)
-    logmel = (logmel - logmel.mean()) / (logmel.std() + 1e-8)
-
-    return logmel
 
 
 def plot_logmel(logmel, title):
@@ -166,6 +147,7 @@ def predict_test_sample(index):
     X_sample = X_test[index:index + 1]
     true_idx = int(y_test[index])
     true_label = str(class_names[true_idx])
+    audio = X_raw[test_idx[index]]
 
     probs = model.predict(X_sample, verbose=0)[0]
 
@@ -183,7 +165,7 @@ def predict_test_sample(index):
     fig = plot_logmel(X_test[index, :, :, 0], "Muestra del test set")
     bird_img = get_bird_image_path(pred_label)
 
-    return result, top_predictions(probs), fig, bird_img
+    return result, top_predictions(probs), fig, bird_img, (SR, audio)
 
 
 # =========================
@@ -205,10 +187,8 @@ def predict_audio(audio_path, start_time):
         return "El segundo de inicio está fuera de la duración del audio.", {}, None, None
 
     y = y_full[start:start + N_SAMPLES]
-    y = fix_length_audio(y)
-
-    logmel = audio_to_logmel(y)
-    X_input = logmel[np.newaxis, ..., np.newaxis]
+    logmel = preprocess_waveform_segment(y)
+    X_input = logmel[..., np.newaxis]
 
     probs = model.predict(X_input, verbose=0)[0]
 
@@ -259,6 +239,8 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
 
                 btn = gr.Button("Evaluar muestra")
 
+                test_audio = gr.Audio(label="Audio")
+
                 gr.Markdown("### Resultado")
                 out_text = gr.Textbox(
                     label="Predicción",
@@ -285,7 +267,7 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
         btn.click(
             predict_test_sample,
             inputs=[idx],
-            outputs=[out_text, out_label, out_plot, bird_image]
+            outputs=[out_text, out_label, out_plot, bird_image, test_audio]
         )
 
     with gr.Tab("Audio externo"):

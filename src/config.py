@@ -26,11 +26,10 @@ class Config:
             return curr
         except (KeyError, TypeError):
             return default
+config = Config()
 
-# Singleton instance for easy access
 config = None
 try:
     config = Config()
 except Exception:
-    # Handle cases where config might not be available yet
     pass

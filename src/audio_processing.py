@@ -2,7 +2,7 @@ import os
 import numpy as np
 import librosa
 
-from config import Config
+from src.config import Config
 
 config = Config()
 
@@ -119,3 +119,5 @@ def preprocess_waveform_segment(audio, snr_db=None):
     logmel = audio_to_logmel(audio)
 
     return logmel
+
+#.

@@ -130,7 +130,6 @@ exp_val_idx, exp_test_idx, exp_y_val, exp_y_test = train_test_split(
     stratify=exp_y_temp
 )
 
-#AGREGAR UN PRINT PARA SABER SI LO HIZO BIEN
 
 
 os.makedirs(os.path.join(PROCESSED_DIR, "main"), exist_ok=True)

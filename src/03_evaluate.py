@@ -4,7 +4,6 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import tensorflow as tf
-
 from sklearn.metrics import (
     classification_report,
     confusion_matrix,
@@ -14,19 +13,34 @@ from sklearn.metrics import (
     recall_score
 )
 
-PROCESSED_DIR = "processed"
-MODEL_DIR = "models"
 
-MODEL_PATH = os.path.join(MODEL_DIR, "best_cnn_model_12_classes.keras")
-ENCODER_PATH = os.path.join(PROCESSED_DIR, "label_encoder.pkl")
+from config import Config
 
-X_test = np.load(os.path.join(PROCESSED_DIR, "X_test.npy"))
-y_test = np.load(os.path.join(PROCESSED_DIR, "y_test.npy"))
 
-with open(ENCODER_PATH, "rb") as f:
-    encoder = pickle.load(f)
+config = Config()
 
-class_names = encoder.classes_
+PROCESSED_DIR = config.get("paths", "processed_dir")
+MODEL_PATH = config.get("paths", "best_model_path")
+MIN_SAMPLES_PER_CLASS = config.get("dataset", "min_samples_per_class")
+MODEL_DIR = config.get("paths", "model_dir")
+
+# =========================
+# DATOS DE TEST
+# =========================
+X = np.load(os.path.join(PROCESSED_DIR, "X.npy"))
+test_idx = np.load(os.path.join(PROCESSED_DIR, "main/main_test_idx.npy"))
+y_test = np.load(os.path.join(PROCESSED_DIR, "main/main_test_y.npy"))
+
+X_test = X[test_idx]
+
+class_names = np.load(os.path.join(PROCESSED_DIR, "main_classes.npy"))
+
+print(X_test.shape, y_test.shape)
+print(class_names)
+
+# =========================
+# CARGAR MODELO
+# =========================
 
 model = tf.keras.models.load_model(MODEL_PATH)
 
@@ -96,5 +110,6 @@ plt.title("Matriz de confusión - 12 clases")
 plt.xticks(rotation=90)
 plt.yticks(rotation=0)
 plt.tight_layout()
-plt.savefig(os.path.join(MODEL_DIR, "confusion_matrix_12_classes.png"), dpi=300)
-plt.show()
+
+plt.savefig(os.path.join(MODEL_DIR, "test_confusion_matrix.png"), dpi=300)
+

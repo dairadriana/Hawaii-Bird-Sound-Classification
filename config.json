@@ -11,9 +11,22 @@
         "random_state": 42,
         "min_samples_per_class": 200
     },
+    "add_noise": {
+        "noise_levels": [
+            40,
+            35,
+            30,
+            25,
+            20,
+            15,
+            10,
+            5,
+            0
+        ]
+    },
     "prepare_dataset": {
         "MAX_SAMPLES_PER_CLASS": 1000,
-        "SAVE_RAW_AUDIO": false,
+        "SAVE_RAW_AUDIO": true,
         "SAVE_LOGMEL": true
     },
     "audio": {

@@ -2,86 +2,28 @@ import os
 import pickle
 import numpy as np
 import pandas as pd
-import librosa
 
 from tqdm import tqdm
 from sklearn.preprocessing import LabelEncoder
 
-DATA_DIR = "data"
-AUDIO_DIR = os.path.join(DATA_DIR, "soundscape_data")
+from config import Config
+from audio_processing import (
+    find_audio_file,
+    preprocess_audio_segment,
+    audio_to_logmel
+)
+
+config = Config()
+
+DATA_DIR = config.get("paths", "data_dir")
 ANNOTATIONS_FILE = os.path.join(DATA_DIR, "annotations.csv")
-OUTPUT_DIR = "processed"
+OUTPUT_DIR = config.get("paths", "processed_dir")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-SR = 16000
-SEGMENT_DURATION = 3.0
-N_SAMPLES = int(SR * SEGMENT_DURATION)
-
-N_MELS = 128
-N_FFT = 2048
-HOP_LENGTH = 512
-
-MIN_SAMPLES_PER_CLASS = 500
-MAX_SAMPLES_PER_CLASS = 1000
-
-np.random.seed(42)
-
-
-def load_audio_segment(filepath, start_time, end_time):
-    duration = end_time - start_time
-
-    y, _ = librosa.load(
-        filepath,
-        sr=SR,
-        offset=start_time,
-        duration=duration,
-        mono=True
-    )
-
-    return y
-
-
-def fix_length_audio(y):
-    if len(y) < N_SAMPLES:
-        y = np.pad(y, (0, N_SAMPLES - len(y)))
-    else:
-        y = y[:N_SAMPLES]
-
-    return y
-
-
-def audio_to_logmel(y):
-    mel = librosa.feature.melspectrogram(
-        y=y,
-        sr=SR,
-        n_fft=N_FFT,
-        hop_length=HOP_LENGTH,
-        n_mels=N_MELS
-    )
-
-    logmel = librosa.power_to_db(mel, ref=np.max)
-    logmel = (logmel - logmel.mean()) / (logmel.std() + 1e-8)
-
-    return logmel
-
-
-def find_audio_file(filename):
-    filename = str(filename)
-
-    possible_names = [
-        filename,
-        filename.replace(".wav", ".flac"),
-        filename.replace(".WAV", ".flac"),
-        filename.replace(".FLAC", ".flac")
-    ]
-
-    for root, _, files in os.walk(AUDIO_DIR):
-        for name in possible_names:
-            if name in files:
-                return os.path.join(root, name)
-
-    return None
+MAX_SAMPLES_PER_CLASS = config.get("prepare_dataset", "MAX_SAMPLES_PER_CLASS")
+SAVE_RAW_AUDIO = config.get("prepare_dataset", "SAVE_RAW_AUDIO")
+SAVE_LOGMEL = config.get("prepare_dataset", "SAVE_LOGMEL")
 
 
 def main():
@@ -96,93 +38,113 @@ def main():
         subset=[filename_col, start_col, end_col, label_col]
     )
 
-    annotations[start_col] = annotations[start_col].astype(float)
-    annotations[end_col] = annotations[end_col].astype(float)
+    annotations[start_col] = annotations[start_col].astype(np.float32)
+    annotations[end_col] = annotations[end_col].astype(np.float32)
 
     annotations = annotations[annotations[end_col] > annotations[start_col]]
 
-    print("Distribución original:")
-    print(annotations[label_col].value_counts())
-
-    class_counts = annotations[label_col].value_counts()
-    valid_labels = class_counts[class_counts >= MIN_SAMPLES_PER_CLASS].index
-
-    annotations = annotations[annotations[label_col].isin(valid_labels)]
-
-    print("\nClases seleccionadas para 12 clases:")
-    print(annotations[label_col].value_counts())
-    print("Número de clases:", annotations[label_col].nunique())
-
-    sampled_list = []
-
+    sampled = []
     for _, group in annotations.groupby(label_col):
-        sampled = group.sample(
-            min(len(group), MAX_SAMPLES_PER_CLASS),
-            random_state=42
+        sampled.append(
+            group.sample(
+                min(len(group), MAX_SAMPLES_PER_CLASS),
+                random_state=42
+            )
         )
-        sampled_list.append(sampled)
 
-    annotations = pd.concat(sampled_list).reset_index(drop=True)
+    annotations = pd.concat(sampled).reset_index(drop=True)
 
-    print("\nDistribución después de limitar muestras:")
-    print(annotations[label_col].value_counts())
+    n_samples = len(annotations)
 
-    X = []
+    # Infer shapes from one sample
+    sample_row = annotations.iloc[0]
+    sample_path = find_audio_file(sample_row[filename_col])
+
+    sample_audio = preprocess_audio_segment(
+        sample_path,
+        sample_row[start_col],
+        sample_row[end_col]
+    )
+
+    if SAVE_LOGMEL:
+        sample_logmel = audio_to_logmel(sample_audio)
+        X = np.empty(
+            (n_samples, *sample_logmel.shape, 1),
+            dtype=np.float32
+        )
+
+    if SAVE_RAW_AUDIO:
+        X_raw = np.empty(
+            (n_samples, len(sample_audio)),
+            dtype=np.float32
+        )
+
     y_labels = []
 
     missing_files = 0
     errors = 0
+    valid_count = 0
 
-    for _, row in tqdm(annotations.iterrows(), total=len(annotations)):
-        filename = row[filename_col]
-        start_time = row[start_col]
-        end_time = row[end_col]
-        label = row[label_col]
-
-        filepath = find_audio_file(filename)
+    for _, row in tqdm(annotations.iterrows(), total=n_samples):
+        filepath = find_audio_file(row[filename_col])
 
         if filepath is None:
             missing_files += 1
             continue
 
         try:
-            audio = load_audio_segment(filepath, start_time, end_time)
-            audio = fix_length_audio(audio)
+            audio = preprocess_audio_segment(
+                filepath,
+                row[start_col],
+                row[end_col]
+            )
 
-            logmel = audio_to_logmel(audio)
+            if SAVE_LOGMEL:
+                X[valid_count] = audio_to_logmel(audio)[..., np.newaxis]
 
-            X.append(logmel)
-            y_labels.append(label)
+            if SAVE_RAW_AUDIO:
+                X_raw[valid_count] = audio
+
+            y_labels.append(row[label_col])
+            valid_count += 1
 
         except Exception as e:
             errors += 1
-            if errors <= 10:
-                print(f"Error procesando {filename}")
-                print(f"Tipo: {type(e).__name__}")
-                print(f"Detalle: {repr(e)}")
+            print(f"Error procesando {row[filename_col]}: {e}")
 
-    if len(X) == 0:
-        raise ValueError("No se generó ningún segmento.")
+    if valid_count == 0:
+        raise ValueError("No se generó ningún segmento válido.")
 
-    X = np.array(X, dtype=np.float32)
-    X = X[..., np.newaxis]
+    # Trim unused preallocated space
+    if SAVE_LOGMEL:
+        X = X[:valid_count]
+
+    if SAVE_RAW_AUDIO:
+        X_raw = X_raw[:valid_count]
 
     encoder = LabelEncoder()
     y = encoder.fit_transform(y_labels)
 
-    np.save(os.path.join(OUTPUT_DIR, "X.npy"), X)
+    if SAVE_LOGMEL:
+        np.save(os.path.join(OUTPUT_DIR, "X.npy"), X)
+
+    if SAVE_RAW_AUDIO:
+        np.save(os.path.join(OUTPUT_DIR, "X_raw.npy"), X_raw)
+
     np.save(os.path.join(OUTPUT_DIR, "y.npy"), y)
 
     with open(os.path.join(OUTPUT_DIR, "label_encoder.pkl"), "wb") as f:
         pickle.dump(encoder, f)
 
-    print("\n==============================")
     print("Dataset procesado correctamente")
-    print("==============================")
-    print("X shape:", X.shape)
+
+    if SAVE_LOGMEL:
+        print("X shape:", X.shape)
+
+    if SAVE_RAW_AUDIO:
+        print("X_raw shape:", X_raw.shape)
+
     print("y shape:", y.shape)
-    print("Número de clases:", len(encoder.classes_))
-    print("Clases:", encoder.classes_)
     print("Archivos no encontrados:", missing_files)
     print("Errores:", errors)
 

@@ -4,57 +4,59 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
-from sklearn.model_selection import train_test_split
+from config import Config
 from sklearn.utils.class_weight import compute_class_weight
 from sklearn.metrics import f1_score, precision_score, recall_score
 from tensorflow.keras import layers, models, callbacks
 
-PROCESSED_DIR = "processed"
-MODEL_DIR = "models"
+# =========================
+# CONFIGURACIÓN
+# =========================
 
+config = Config()
+
+PROCESSED_DIR = config.get("paths", "processed_dir")
+MODEL_DIR = config.get("paths", "model_dir")
+MODEL_PATH = config.get("paths", "best_model_path")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-MODEL_PATH = os.path.join(MODEL_DIR, "best_cnn_model_12_classes.keras")
+# =========================
+# CARGAR DATOS
+# =========================
 
 X = np.load(os.path.join(PROCESSED_DIR, "X.npy"))
-y = np.load(os.path.join(PROCESSED_DIR, "y.npy"))
-
-with open(os.path.join(PROCESSED_DIR, "label_encoder.pkl"), "rb") as f:
-    encoder = pickle.load(f)
-
-num_classes = len(encoder.classes_)
-
-print("X:", X.shape)
-print("y:", y.shape)
-print("Número de clases:", num_classes)
-print("Clases:", encoder.classes_)
-
-classes, counts = np.unique(y, return_counts=True)
-
-print("\nDistribución:")
-for cls, count in zip(classes, counts):
-    print(f"{encoder.classes_[cls]}: {count}")
-
-X_train, X_temp, y_train, y_temp = train_test_split(
-    X,
-    y,
-    test_size=0.30,
-    random_state=42,
-    stratify=y
+main_classes = np.load(
+    os.path.join(PROCESSED_DIR, "main_classes.npy"),
+    allow_pickle=True
 )
 
-X_val, X_test, y_val, y_test = train_test_split(
-    X_temp,
-    y_temp,
-    test_size=0.50,
-    random_state=42,
-    stratify=y_temp
-)
+num_classes = len(main_classes)
+
+train_idx = np.load(os.path.join(PROCESSED_DIR, "main/main_train_idx.npy"))
+val_idx   = np.load(os.path.join(PROCESSED_DIR, "main/main_val_idx.npy"))
+
+y_train = np.load(os.path.join(PROCESSED_DIR, "main/main_train_y.npy"))
+y_val   = np.load(os.path.join(PROCESSED_DIR, "main/main_val_y.npy"))
+
+# =========================
+# INDEXAR FEATURES
+# =========================
+X_train = X[train_idx]
+X_val   = X[val_idx]
 
 np.save(os.path.join(PROCESSED_DIR, "X_test.npy"), X_test)
 np.save(os.path.join(PROCESSED_DIR, "y_test.npy"), y_test)
 np.save(os.path.join(PROCESSED_DIR, "X_val.npy"), X_val)
 np.save(os.path.join(PROCESSED_DIR, "y_val.npy"), y_val)
+
+print("\nTamaños:")
+print("Train:", X_train.shape, y_train.shape)
+print("Val:", X_val.shape, y_val.shape)
+
+
+# =========================
+# CLASS WEIGHTS
+# =========================
 
 class_weights_array = compute_class_weight(
     class_weight="balanced",
@@ -136,25 +138,10 @@ history = model.fit(
     callbacks=[early_stop, checkpoint]
 )
 
-test_loss, test_acc = model.evaluate(X_test, y_test)
+# =========================
+# GRÁFICAS
+# =========================
 
-y_probs = model.predict(X_test)
-y_pred = np.argmax(y_probs, axis=1)
-
-macro_f1 = f1_score(y_test, y_pred, average="macro", zero_division=0)
-weighted_f1 = f1_score(y_test, y_pred, average="weighted", zero_division=0)
-macro_precision = precision_score(y_test, y_pred, average="macro", zero_division=0)
-macro_recall = recall_score(y_test, y_pred, average="macro", zero_division=0)
-
-print("\n==============================")
-print("RESULTADOS FINALES")
-print("==============================")
-print(f"Test loss: {test_loss:.4f}")
-print(f"Test accuracy: {test_acc:.4f}")
-print(f"Macro Precision: {macro_precision:.4f}")
-print(f"Macro Recall: {macro_recall:.4f}")
-print(f"Macro F1: {macro_f1:.4f}")
-print(f"Weighted F1: {weighted_f1:.4f}")
 
 plt.figure()
 plt.plot(history.history["accuracy"], label="Train accuracy")
@@ -174,4 +161,4 @@ plt.legend()
 plt.title("Loss de entrenamiento y validación")
 plt.savefig(os.path.join(MODEL_DIR, "loss_curve.png"), dpi=300)
 
-plt.show()
+

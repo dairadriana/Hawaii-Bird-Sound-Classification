@@ -98,13 +98,14 @@ custom_css = f"""
     margin-bottom: 10px !important;
 
     padding: 6px 12px;
-    border-radius: 8px;
+    border-radius: 4px;
 
-    background-color: rgb(255, 235, 59);
-    color: black !important;
+    background: rgb(135, 128, 145) !important;
+    color: white !important;
 
     font-weight: 700;
-    display: inline-block;
+    width: 100%;
+    box-sizing: border-box;
 }}
 
 .gr-label {{
@@ -233,7 +234,13 @@ def predict_audio(audio_path, start_time):
     try:
         y_full, _ = librosa.load(audio_path, sr=SR, mono=True)
     except Exception as e:
-        return f"No se pudo leer el audio.\nError: {type(e).__name__}: {e}", {}, None, None
+        return (
+            gr.update(visible=True),
+            gr.update(value=f"No se pudo leer el audio.\nError: {type(e).__name__}: {e}", visible=True),
+            {},
+            None,
+            None
+        )
 
     start = int(start_time * SR)
 
@@ -315,27 +322,28 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
                     visible=False
                 )
 
-            # COLUMNA 2: Ave + Top 5
-            with gr.Column(scale=1):
-                gr.Markdown("### Ave reconocida", elem_classes="section-title")
-
-                bird_image = gr.Image(
-                    label="Ave reconocida",
-                    type="filepath",
-                    elem_classes="bird-frame"
-                )
-
-                out_label = gr.Label(
-                    label="Top 5 predicciones"
-                )
-
-            # COLUMNA 3: Espectrograma
-            with gr.Column(scale=1):
+            # COLUMNA 2-3: Visualización completa
+            with gr.Column(scale=2):
                 gr.Markdown("### Visualización", elem_classes="section-title")
 
-                out_plot = gr.Plot(
-                    label="Espectrograma"
-                )
+                with gr.Row():
+                    # Subcolumna izquierda: imagen
+                    with gr.Column(scale=1):
+                        bird_image = gr.Image(
+                            label="Ave reconocida",
+                            type="filepath",
+                            elem_classes="bird-frame"
+                        )
+
+                    # Subcolumna derecha: top 5 + espectrograma
+                    with gr.Column(scale=1):
+                        out_label = gr.Label(
+                            label="Top 5 predicciones"
+                        )
+
+                        out_plot = gr.Plot(
+                            label="Espectrograma"
+                        )
 
         btn.click(
             predict_test_sample,
@@ -376,27 +384,28 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
                     visible=False
                 )
 
-            # COLUMNA 2: Ave + Top 5
-            with gr.Column(scale=1):
-                gr.Markdown("### Ave reconocida", elem_classes="section-title")
-
-                bird_image2 = gr.Image(
-                    label="Ave reconocida",
-                    type="filepath",
-                    elem_classes="bird-frame"
-                )
-
-                out_label2 = gr.Label(
-                    label="Top 5 predicciones"
-                )
-
-            # COLUMNA 3: Espectrograma
-            with gr.Column(scale=1):
+            # COLUMNA 2-3: Visualización completa
+            with gr.Column(scale=2):
                 gr.Markdown("### Visualización", elem_classes="section-title")
 
-                out_plot2 = gr.Plot(
-                    label="Espectrograma"
-                )
+                with gr.Row():
+                    # Subcolumna izquierda: imagen
+                    with gr.Column(scale=1):
+                        bird_image2 = gr.Image(
+                            label="Ave reconocida",
+                            type="filepath",
+                            elem_classes="bird-frame"
+                        )
+
+                    # Subcolumna derecha: top 5 + espectrograma
+                    with gr.Column(scale=1):
+                        out_label2 = gr.Label(
+                            label="Top 5 predicciones"
+                        )
+
+                        out_plot2 = gr.Plot(
+                            label="Espectrograma"
+                        )
 
         btn2.click(
             predict_audio,

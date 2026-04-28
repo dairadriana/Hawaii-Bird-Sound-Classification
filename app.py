@@ -97,8 +97,8 @@ custom_css = f"""
     margin-top: 10px;
     margin-bottom: 10px !important;
 
-    padding: 6px 12px;
-    border-radius: 4px;
+    padding: 2px 8px;
+    border-radius: 2px;
 
     background: rgb(135, 128, 145) !important;
     color: white !important;
@@ -106,6 +106,12 @@ custom_css = f"""
     font-weight: 700;
     width: 100%;
     box-sizing: border-box;
+}}
+
+.section-title h3 {{
+    color: white !important;
+    margin: 0 !important;
+    text-align: center; 
 }}
 
 .gr-label {{
@@ -370,7 +376,7 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
                     label="Segundo de inicio del segmento"
                 )
 
-                btn2 = gr.Button("Clasificar audio")
+                btn2 = gr.Button("Clasificar audio", elem_classes="green-btn")
 
                 result_title2 = gr.Markdown(
                     "### Resultado",

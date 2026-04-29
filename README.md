@@ -1,4 +1,6 @@
 # Hawaii-Bird-Sound-Classification
+Edna Gabriela Gochicoa Fuentes	(ednag.gochicoaf@inaoep.mx)
+Daira Adriana Chavarría Rodríguez 	(daira.chavarriar@inaoep.mx)
 
 # Tarea 3 - Inteligencia Computacional I
 

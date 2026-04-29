@@ -1,5 +1,4 @@
 import os
-import pickle
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
@@ -9,10 +8,6 @@ from sklearn.utils.class_weight import compute_class_weight
 from sklearn.metrics import f1_score, precision_score, recall_score
 from tensorflow.keras import layers, models, callbacks
 
-# =========================
-# CONFIGURACIÓN
-# =========================
-
 config = Config()
 
 PROCESSED_DIR = config.get("paths", "processed_dir")
@@ -20,9 +15,6 @@ MODEL_DIR = config.get("paths", "model_dir")
 MODEL_PATH = config.get("paths", "best_model_path")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-# =========================
-# CARGAR DATOS
-# =========================
 
 X = np.load(os.path.join(PROCESSED_DIR, "X.npy"))
 main_classes = np.load(
@@ -31,19 +23,12 @@ main_classes = np.load(
 )
 
 num_classes = len(main_classes)
-
 train_idx = np.load(os.path.join(PROCESSED_DIR, "main/main_train_idx.npy"))
 val_idx   = np.load(os.path.join(PROCESSED_DIR, "main/main_val_idx.npy"))
-
 y_train = np.load(os.path.join(PROCESSED_DIR, "main/main_train_y.npy"))
 y_val   = np.load(os.path.join(PROCESSED_DIR, "main/main_val_y.npy"))
-
-# =========================
-# INDEXAR FEATURES
-# =========================
 X_train = X[train_idx]
 X_val   = X[val_idx]
-
 
 np.save(os.path.join(PROCESSED_DIR, "X_val.npy"), X_val)
 np.save(os.path.join(PROCESSED_DIR, "y_val.npy"), y_val)
@@ -51,11 +36,6 @@ np.save(os.path.join(PROCESSED_DIR, "y_val.npy"), y_val)
 print("\nTamaños:")
 print("Train:", X_train.shape, y_train.shape)
 print("Val:", X_val.shape, y_val.shape)
-
-
-# =========================
-# CLASS WEIGHTS
-# =========================
 
 class_weights_array = compute_class_weight(
     class_weight="balanced",
@@ -135,11 +115,6 @@ history = model.fit(
     class_weight=class_weights,
     callbacks=[early_stop, checkpoint]
 )
-
-# =========================
-# GRÁFICAS
-# =========================
-
 
 plt.figure()
 plt.plot(history.history["accuracy"], label="Train accuracy")

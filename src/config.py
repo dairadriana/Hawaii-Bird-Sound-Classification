@@ -8,7 +8,6 @@ class Config:
 
     def _load_config(self):
         if not os.path.exists(self.config_path):
-            # Try looking one level up if not found (for scripts in subdirectories)
             alt_path = os.path.join("..", self.config_path)
             if os.path.exists(alt_path):
                 self.config_path = alt_path

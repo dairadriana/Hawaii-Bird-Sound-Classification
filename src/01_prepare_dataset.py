@@ -40,7 +40,6 @@ def main():
 
     annotations[start_col] = annotations[start_col].astype(np.float32)
     annotations[end_col] = annotations[end_col].astype(np.float32)
-
     annotations = annotations[annotations[end_col] > annotations[start_col]]
 
     sampled = []
@@ -53,10 +52,7 @@ def main():
         )
 
     annotations = pd.concat(sampled).reset_index(drop=True)
-
     n_samples = len(annotations)
-
-    # Infer shapes from one sample
     sample_row = annotations.iloc[0]
     sample_path = find_audio_file(sample_row[filename_col])
 
@@ -80,9 +76,8 @@ def main():
         )
 
     y_labels = []
-
     missing_files = 0
-    errors = 0
+    errors = 0 #control
     valid_count = 0
 
     for _, row in tqdm(annotations.iterrows(), total=n_samples):
@@ -115,7 +110,6 @@ def main():
     if valid_count == 0:
         raise ValueError("No se generó ningún segmento válido.")
 
-    # Trim unused preallocated space
     if SAVE_LOGMEL:
         X = X[:valid_count]
 

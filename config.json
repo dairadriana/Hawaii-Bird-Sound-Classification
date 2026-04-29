@@ -4,7 +4,8 @@
         "processed_dir": "processed",
         "model_dir": "models",
         "best_model_path": "models/best_cnn_model.keras",
-        "assets_dir": "assets"
+        "assets_dir": "assets",
+        "best_model_path_transfer_learning": "models/best_model_fine_tunning.keras"
     },
     "dataset": {
         "test_size": 0.30,
@@ -14,6 +15,8 @@
     },
     "add_noise": {
         "noise_levels": [
+            "None",
+            80,
             40,
             35,
             30,

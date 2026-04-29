@@ -1,4 +1,6 @@
 import os
+import sys
+
 import pickle
 import numpy as np
 import seaborn as sns
@@ -9,125 +11,34 @@ import librosa
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report, confusion_matrix
+import pandas as pd
+from tqdm import tqdm
 
-PROCESSED_DIR = "processed"
-MODEL_PATH = "models/best_cnn_model_500_samples.keras"
-MIN_SAMPLES_PER_CLASS = 500
-# MELS CONFIG
-SR = 16000
-N_MELS = 128
-N_FFT = 2048
-HOP_LENGTH = 512
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-X_raw = np.load(os.path.join(PROCESSED_DIR, "X_raw.npy"))
-y = np.load(os.path.join(PROCESSED_DIR, "y.npy"))
+from src.config import Config
+from src.audio_processing import add_noise_to_audio, audio_to_logmel
 
-NOISE_LEVELS=np.array([0,0.05,0.1,0.5,1,2,4,8])
 
-with open(os.path.join(PROCESSED_DIR, "label_encoder.pkl"), "rb") as f:
-    old_encoder = pickle.load(f)
+config = Config()
 
-old_class_names = old_encoder.classes_
+PROCESSED_DIR = config.get("paths", "processed_dir")
+MODEL_PATH = config.get("paths", "best_model_path")
+MIN_SAMPLES_PER_CLASS = config.get("data", "min_samples_per_class")
 
-print("X original:", X_raw.shape)
-print("y original:", y.shape)
-print("Número original de clases:", len(np.unique(y)))
+NOISE_LEVELS = config.get("add_noise", "noise_levels")
 
-# =========================
-# FILTRAR CLASES PEQUEÑAS
-# =========================
-
-classes, counts = np.unique(y, return_counts=True)
-
-print("\nDistribución original:")
-for c, count in zip(classes, counts):
-    print(f"{old_class_names[c]}: {count}")
-
-valid_classes = classes[counts >= MIN_SAMPLES_PER_CLASS]
-
-mask = np.isin(y, valid_classes)
-
-X_raw = X_raw[mask]
-y = y[mask]
-
-kept_class_names = old_class_names[valid_classes]
-
-# Reindexar etiquetas: 0, 1, 2, ...
-new_encoder = LabelEncoder()
-y_text = old_class_names[y]
-y = new_encoder.fit_transform(y_text)
-
-num_classes = len(np.unique(y))
-
-print("\nDespués de filtrar clases pequeñas:")
-print("X:", X_raw.shape)
-print("y:", y.shape)
-print("Número de clases:", num_classes)
-
-print("\nClases usadas:")
-for cls, count in zip(*np.unique(y_text, return_counts=True)):
-    print(f"{cls}: {count}")
-
-with open(os.path.join(PROCESSED_DIR, "label_encoder_filtered.pkl"), "wb") as f:
-    pickle.dump(new_encoder, f)
-
-# =========================
-# SPLIT TRAIN / VAL / TEST
-# =========================
-
-X_train, X_temp, y_train, y_temp = train_test_split(
-    X_raw,
-    y,
-    test_size=0.30,
-    random_state=42,
-    stratify=y
+kept_class_names = np.load(
+    os.path.join(PROCESSED_DIR, "main_classes.npy"),
+    allow_pickle=True
 )
 
-X_val, X_test, y_val, y_test = train_test_split(
-    X_temp,
-    y_temp,
-    test_size=0.50,
-    random_state=42,
-    stratify=y_temp
-)
 
-print("\nTamaños:")
-print("Train:", X_train.shape, y_train.shape)
-print("Val:", X_val.shape, y_val.shape)
-print("Test:", X_test.shape, y_test.shape)
+X_raw = np.load(os.path.join(PROCESSED_DIR, "X_raw.npy"), mmap_mode="r")
+y_val = np.load(os.path.join(PROCESSED_DIR, "y_val.npy"))
+idx_val = np.load(os.path.join(PROCESSED_DIR, "main/main_val_idx.npy"))
 
-
-
-# =========================
-# CREAR VAL/TEST SETS CON RUIDO
-# =========================
-
-# Generar ruido de fondo (white noise) a partir del dataset de audio crudo
-# Usar el ruido generado para perturbar val y test
-# Convertir a Log-Mel Spectrograms
-
-def add_noise(X,noise_level):
-    noise = np.random.randn(*X.shape)
-    X = (X - X.min()) / (X.max() - X.min())
-    noise = (noise - noise.min()) / (noise.max() - noise.min())
-    X = X + noise_level * noise
-
-    return X
-
-def audio_to_logmel(y):
-    mel = librosa.feature.melspectrogram(
-        y=y,
-        sr=SR,
-        n_fft=N_FFT,
-        hop_length=HOP_LENGTH,
-        n_mels=N_MELS
-    )
-
-    logmel = librosa.power_to_db(mel, ref=np.max)
-
-    logmel = (logmel - logmel.mean()) / (logmel.std() + 1e-8)
-
-    return logmel
+X_val = X_raw[idx_val]
 
 # =========================
 # CARGAR MODELO
@@ -139,25 +50,68 @@ model = tf.keras.models.load_model(MODEL_PATH)
 # EVALUAR PARA DIFERENTES NIVELES DE RUIDO
 # =========================
 
-X_val_noise = []
+results = []
 
-for level in NOISE_LEVELS:
-    x_val = add_noise(X_val, level)
+X_val_noise = X_val
+X_val_noise_mel = []
+for audio in X_val_noise:
+    X_val_noise_mel.append(audio_to_logmel(audio))
+X_val_noise_mel = np.array(X_val_noise_mel)
+X_val_noise_mel = X_val_noise_mel[..., np.newaxis]
 
-    x_val_mel = []
-    for audio in x_val:
-        x_val_mel.append(audio_to_logmel(audio))
+probs = model.predict(X_val_noise_mel, verbose=0)
+y_pred = np.argmax(probs, axis=1)
+
+report = classification_report(
+    y_val,
+    y_pred,
+    target_names=kept_class_names,
+    output_dict=True,
+    zero_division=0
+)
+
+results.append({
+    "SNR (dB)": "None",
+    "Accuracy": report["accuracy"],
+    "Macro F1": report["macro avg"]["f1-score"],
+    "Weighted F1": report["weighted avg"]["f1-score"]
+})
+
+for level in tqdm(NOISE_LEVELS, desc="Evaluando niveles de ruido"):
+    X_val_noise = add_noise_to_audio(X_val, level)
+
+    X_val_noise_mel = []
+    for audio in X_val_noise:
+        X_val_noise_mel.append(audio_to_logmel(audio))
     
-    x_val_mel = np.array(x_val_mel)
-    x_val_mel = x_val_mel[..., np.newaxis]
+    X_val_noise_mel = np.array(X_val_noise_mel)
+    X_val_noise_mel = X_val_noise_mel[..., np.newaxis]
 
-    probs = model.predict(x_val_mel)
+    probs = model.predict(X_val_noise_mel, verbose=0)
     y_pred = np.argmax(probs, axis=1)
 
-    print("\nClassification report for noise level:", level)
-    print(classification_report(
+    report = classification_report(
         y_val,
         y_pred,
         target_names=kept_class_names,
+        output_dict=True,
         zero_division=0
-    ))
+    )
+    
+    results.append({
+        "SNR (dB)": level,
+        "Accuracy": report["accuracy"],
+        "Macro F1": report["macro avg"]["f1-score"],
+        "Weighted F1": report["weighted avg"]["f1-score"]
+    })
+
+# =========================
+# MOSTRAR TABLA COMPARATIVA
+# =========================
+
+df = pd.DataFrame(results)
+print("\n" + "="*50)
+print("TABLA COMPARATIVA: RENDIMIENTO VS RUIDO")
+print("="*50)
+print(df.to_string(index=False, float_format="%.4f"))
+print("="*50)

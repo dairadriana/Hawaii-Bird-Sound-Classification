@@ -4,10 +4,10 @@ import sys
 import numpy as np
 import tensorflow as tf
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from config import Config
-from audio_processing import add_noise_to_audio, audio_to_logmel
+from src.config import Config
+from src.audio_processing import add_noise_to_audio, audio_to_logmel
 
 
 config = Config()
@@ -65,7 +65,7 @@ exp_conf = np.max(exp_probs, axis=1)
 val_conf = np.max(probs, axis=1)
 
 # Distribución de predicción en datos sin relación
-unique, counts = np.unique(y_noise_pred, return_counts=True)
+unique, counts = np.unique(y_pred, return_counts=True)
 
 for cls, count in zip(unique, counts):
     print(f"Clase {class_names[cls]}: {count} muestras")

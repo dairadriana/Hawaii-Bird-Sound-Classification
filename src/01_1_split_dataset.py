@@ -15,11 +15,6 @@ RANDOM_STATE = config.get("dataset", "random_state")
 TEST_SIZE = config.get("dataset", "test_size")
 VAL_SPLIT = config.get("dataset", "val_split")
 
-# =========================
-# CARGAR DATOS
-# =========================
-
-# We are using indexes so we only need y
 y = np.load(os.path.join(PROCESSED_DIR, "y.npy"))
 original_indices = np.arange(len(y))
 
@@ -27,13 +22,9 @@ with open(os.path.join(PROCESSED_DIR, "label_encoder.pkl"), "rb") as f:
     class_encoder = pickle.load(f)
 
 class_names = class_encoder.classes_
+print("Número original de clases:", len(np.unique(y))) # sólo para verificación
 
-print("Número original de clases:", len(np.unique(y)))
-
-# =========================
-# FILTRAR CLASES PEQUEÑAS
-# =========================
-
+# filtrado de clases pequeñas
 classes, counts = np.unique(y, return_counts=True)
 
 print("\nDistribución original:")
@@ -41,17 +32,10 @@ for c, count in zip(classes, counts):
     print(f"{class_names[c]}: {count}")
 
 valid_classes = classes[counts >= MIN_SAMPLES_PER_CLASS]
-
 mask = np.isin(y, valid_classes)
-
 y = y[mask]
 filtered_idx = original_indices[mask]
 y_text = class_names[y]
-#AGREGAR UN PRINT PARA SABER SI LO HIZO BIEN
-
-# =========================
-# DIVIDIR CLASES ENTRE MAIN Y EXP
-# =========================
 
 all_filtered_classes = np.unique(y_text)
 
@@ -63,20 +47,14 @@ main_class_names, exp_class_names = train_test_split(
 
 main_mask = np.isin(y_text, main_class_names)
 exp_mask  = np.isin(y_text, exp_class_names)
-
 main_idx = filtered_idx[main_mask]
 exp_idx  = filtered_idx[exp_mask]
-
 main_y_text = y_text[main_mask]
 exp_y_text  = y_text[exp_mask]
-#AGREGAR UN PRINT PARA SABER SI LO HIZO BIEN
 
-# =========================
-# REINDEXAR
-# =========================
+
 main_encoder = LabelEncoder()
 main_y = main_encoder.fit_transform(main_y_text)
-
 exp_encoder = LabelEncoder()
 exp_y = exp_encoder.fit_transform(exp_y_text)
 
@@ -89,11 +67,7 @@ with open(os.path.join(PROCESSED_DIR, "exp_label_encoder.pkl"), "wb") as f:
 np.save(os.path.join(PROCESSED_DIR, "main_classes.npy"), main_encoder.classes_)
 np.save(os.path.join(PROCESSED_DIR, "exp_classes.npy"), exp_encoder.classes_)
 
-# =========================
-# SPLIT TRAIN / VAL / TEST
-# =========================
 
-# main
 main_train_idx, main_temp_idx, main_y_train, main_y_temp = train_test_split(
     main_idx,
     main_y,
@@ -110,9 +84,6 @@ main_val_idx, main_test_idx, main_y_val, main_y_test = train_test_split(
     stratify=main_y_temp
 )
 
-#AGREGAR UN PRINT PARA SABER SI LO HIZO BIEN
-
-# exp
 exp_train_idx, exp_temp_idx, exp_y_train, exp_y_temp = train_test_split(
     exp_idx,
     exp_y,

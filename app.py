@@ -27,7 +27,7 @@ HOP_LENGTH = config.get("audio", "hop_length")
 BACKGROUND_IMAGE = "assets/background.jpg"
 BIRD_IMAGE_DIR = "assets/birds"
 
-# Background
+# Background - bosque(?)
 def image_to_base64(path):
     with open(path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
@@ -310,9 +310,6 @@ def predict_noisy_sample(index, snr_level):
         (SR, audio)
     )
 
-# --------------------
-# APP
-
 with gr.Blocks(theme=theme, css=custom_css) as demo:
 
     gr.HTML(
@@ -328,7 +325,6 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
 
     with gr.Tab("Test set"):
         with gr.Row():
-            # COLUMNA 1: Entrada + Resultado
             with gr.Column(scale=1):
                 gr.Markdown("### Entrada", elem_classes="section-title")
 
@@ -360,7 +356,6 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
                     visible=False
                 )
 
-            # COLUMNA 2-3: Visualización completa
             with gr.Column(scale=2):
                 gr.Markdown("### Visualización", elem_classes="section-title")
                 # Sonido
@@ -368,7 +363,7 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
                     label="Audio con ruido"
                 )
                 with gr.Row():
-                    # Subcolumna izquierda: imagen
+                    # imagen de cada pájaro
                     with gr.Column(scale=1):
                         bird_image = gr.Image(
                             label="Ave reconocida",
@@ -376,7 +371,6 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
                             elem_classes="bird-frame"
                         )
 
-                    # Subcolumna derecha: top 5 + espectrograma
                     with gr.Column(scale=1):
                         out_label = gr.Label(
                             label="Top 5 predicciones"
@@ -394,7 +388,6 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
 
     with gr.Tab("Audio externo"):
         with gr.Row():
-            # COLUMNA 1: Entrada + Resultado
             with gr.Column(scale=1):
                 gr.Markdown("### Entrada", elem_classes="section-title")
 
@@ -425,20 +418,16 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
                     visible=False
                 )
 
-            # COLUMNA 2-3: Visualización completa
             with gr.Column(scale=2):
                 gr.Markdown("### Visualización", elem_classes="section-title")
 
                 with gr.Row():
-                    # Subcolumna izquierda: imagen
                     with gr.Column(scale=1):
                         bird_image2 = gr.Image(
                             label="Ave reconocida",
                             type="filepath",
                             elem_classes="bird-frame"
                         )
-
-                    # Subcolumna derecha: top 5 + espectrograma
                     with gr.Column(scale=1):
                         out_label2 = gr.Label(
                             label="Top 5 predicciones"
@@ -457,7 +446,6 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
 
     with gr.Tab("Transfer Learning"):
         with gr.Row():
-            # COLUMNA 1: Entrada + Resultado
             with gr.Column(scale=1):
                 gr.Markdown("### Entrada", elem_classes="section-title")
 
@@ -482,8 +470,7 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
                     lines=5,
                     visible=False
                 )
-
-            # COLUMNA 2-3: Visualización completa
+                
             with gr.Column(scale=2):
                 gr.Markdown("### Visualización", elem_classes="section-title")
 
@@ -496,7 +483,6 @@ with gr.Blocks(theme=theme, css=custom_css) as demo:
                             elem_classes="bird-frame"
                         )
 
-                    # Subcolumna derecha: top 5 + espectrograma
                     with gr.Column(scale=1):
                         out_label = gr.Label(
                             label="Top 5 predicciones"
